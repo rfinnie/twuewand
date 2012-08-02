@@ -2,7 +2,7 @@
 
 ########################################################################
 # twuewand, a truerand algorithm for generating entropy
-# Copyright (C) 2011 Ryan Finnie <ryan@finnie.org>
+# Copyright (C) 2012 Ryan Finnie <ryan@finnie.org>
 #
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License
@@ -23,7 +23,7 @@
 # Intended usage:
 #   twuewand $(cat /proc/sys/kernel/random/poolsize) >/dev/urandom
 
-my $VERSION = '1.0';
+my $VERSION = '1.1';
 
 use warnings;
 use strict;
@@ -52,7 +52,7 @@ my($optresult) = GetOptions(
 
 if((scalar @ARGV == 0) || $opt_help) {
   print STDERR "twuewand version $VERSION\n";
-  print STDERR "Copyright (C) 2011 Ryan Finnie <ryan\@finnie.org>\n";
+  print STDERR "Copyright (C) 2012 Ryan Finnie <ryan\@finnie.org>\n";
   print STDERR "\n";
   pod2usage(2);
 }
@@ -63,10 +63,15 @@ if((scalar @ARGV == 0) || $opt_help) {
 my($digestobj);
 my($digestsize) = 1;
 unless($opt_nowhiten) {
+  # I originally included a minimum version of 4.3.0 when I was using 
+  # SHA512, but, err, I have no idea how I came about that version, 
+  # since earlier versions appear to have SHA512 support.  But hey, 
+  # 4.3.0 was from 2004, so if you're running Perl modules that old, 
+  # you've probably got larger problems.
   if(can_load(modules => {'Digest::SHA' => 4.3.0})) {
     require Digest::SHA;
-    $digestobj = \&Digest::SHA::sha512;
-    $digestsize = 64;
+    $digestobj = \&Digest::SHA::sha256;
+    $digestsize = 32;
   } else {
     unless($opt_quiet) { print STDERR "Warning: Cannot find Digest::SHA; falling back to MD5.\n"; }
     require Digest::MD5;
@@ -91,7 +96,8 @@ my($outleft) = $reqbytes;
 $SIG{ALRM} = "tick";
 
 # These variables must be global since the alarm handler relies on them
-my($statebit, $outbitscnt, $outbits);
+my($statebit, $outbitscnt, $outbits, $lastbit, $lastbitheld);
+my($discardedbitcnt) = 0;
 for(my($reqbytesi) = 0; $reqbytesi < $reqbytes; $reqbytesi++) {
   $outbitscnt = 0;
   $outbits = 0;
@@ -108,7 +114,7 @@ for(my($reqbytesi) = 0; $reqbytesi < $reqbytes; $reqbytesi++) {
   # Once we have a full byte, add it to the buffer
   $outbuff .= chr($outbits);
   $outbufflen++;
-  unless($opt_quiet) { printf STDERR "%sGenerated: %" . $fmtlen . "i/%i (%3i%%)", chr(13), ($reqbytesi + 1), $reqbytes, (($reqbytesi + 1) / $reqbytes * 100); }
+  unless($opt_quiet) { printf STDERR "%sGenerated: %" . $fmtlen . "i/%i bytes (%3i%%)", chr(13), ($reqbytesi + 1), $reqbytes, (($reqbytesi + 1) / $reqbytes * 100); }
 
   # If we have $digestsize bytes, run them through a digest and output the result
   if($outbufflen == $digestsize) {
@@ -137,14 +143,45 @@ if($outleft > 0) {
   $outleft = 0;
 }
 
-unless($opt_quiet) { print STDERR "\n"; }
+unless($opt_quiet || !$reqbytes) { print STDERR "\n"; }
+unless($opt_quiet || $opt_nowhiten || !$reqbytes) { printf STDERR "Discarded %d bits (%d%%) due to whitening.\n", $discardedbitcnt, $discardedbitcnt / ($reqbytes * 8 + $discardedbitcnt) * 100; }
 exit;
 
 sub tick {
   # We have a random bit!
-  # Shift and add the new bit to the working byte
-  $outbits = ($outbits << 1) + $statebit;
-  $outbitscnt++;
+
+  if($opt_nowhiten) {
+    # If no whitening is to be performed, don't bother with the Von 
+    # Neumann dance.  Instead, add the state bit directly to the 
+    # output bits.
+    $outbits = ($outbits << 1) + $statebit;
+    $outbitscnt++;
+  } else {
+    # We want to run the input bits through Von Neumann debiasing, so 
+    # the last bit is held for analysis.
+    if($lastbitheld) {
+      if(($lastbit && $statebit) || (!$lastbit && !$statebit)) {
+        # If this bit and the last bit are both 0 or both 1, simply 
+        # throw out both bits.
+        $discardedbitcnt += 2;
+      } else {
+        # Otherwise, shift the working byte and add the PREVIOUS bit.  
+        # So (0, 1) becomes 0 and (1, 0) becomes 1.
+        $outbits = ($outbits << 1) + $lastbit;
+        $outbitscnt++;
+        $discardedbitcnt++;
+      }
+      # Forget about the last bit.  The next bit to be generated will be 
+      # the first part of the pair.
+      $lastbitheld = 0;
+    } else {
+      # If we didn't have a bit held, use the generated bit to as the 
+      # last bit.
+      $lastbit = $statebit;
+      $lastbitheld = 1;
+    }
+  }
+
   # If we still need more bits for this byte, schedule a new alarm
   if($outbitscnt < 8) {
     $statebit = 0; alarm($opt_interval);
@@ -166,24 +203,36 @@ B<twuewand> S<[ B<options> ]> I<bytes>
 B<twuewand> is software that creates hardware-generated random data.  
 It accomplishes this by exploiting the fact that the CPU clock and the 
 RTC (real-time clock) are physically separate, and that time and work 
-are not linked.  twuewand schedules a SIGALRM for a short time in the 
-future (0.004 seconds by default), then begins flipping a bit as fast 
-as possible.  When the alarm is delivered, the bit's state is recorded.  
+are not linked.
+
+twuewand schedules a SIGALRM for a short time in the future (0.004 
+seconds by default), then begins flipping a bit as fast as possible.  
+When the alarm is delivered, the bit's state is recorded.  Von Neumann 
+debiasing is (by default) performed on bit pairs, throwing out 
+matching bit pairs, and using the first bit for non-matching bit 
+pairs.  This reduces bias, at the expense of wasted bits.
+
 This process is performed multiple times until the number of desired 
-bytes have been generated.  The data is then (by default) run through a 
-cryptographic hash digest (default SHA512, but will fall back to MD5 if 
-Digest::SHA is not available) to "whiten" and normalize the data before 
-being output.
+bytes have been generated.  The data is then (by default) run through 
+a cryptographic hash digest (default SHA256, but will fall back to MD5 
+if Digest::SHA is not available) to "whiten" and normalize the data 
+before being output.
 
-twuewand is based on the truerand algorithm, by D. P. Mitchell in 1995.  
-The output of twuewand is not designed to be used as random data 
-directly (but could be in a pinch), but is for seeding a PRNG, when a 
-saved PRNG state is not available (on a LiveCD or diskless workstation, 
-for example).  An example use in Linux is:
+twuewand is based on the truerand algorithm, by D. P. Mitchell in 
+1995.  The output of twuewand may be used for random data directly (as 
+long as whitening is not disabled), but its primary purpose is for 
+seeding a PRNG, when a saved PRNG state is not available (on a LiveCD 
+or diskless workstation, for example).  An example use in Linux is:
 
-    twuewand $(cat /proc/sys/kernel/random/poolsize) >/dev/urandom
+    twuewand --no-whiten $(cat /proc/sys/kernel/random/poolsize) >/dev/urandom
 
-Seeding /dev/urandom will seed both the urandom and random.
+Seeding /dev/urandom will seed both the urandom and random.  Whitening 
+through twuewand is not strictly necessary when seeding urandom, as 
+the Linux RNG system will consider seeded data to be biased anyway and 
+will perform its own whitening.  Sending data to urandom does not 
+directly insert random data for later re-use, but instead is 
+considered another source of possible entropy and will perform its own 
+filtering.
 
 =head1 OPTIONS
 
@@ -192,10 +241,11 @@ Seeding /dev/urandom will seed both the urandom and random.
 =item B<-i> interval (B<--interval>)
 
 The alarm interval to set for each bit collection round, in seconds.  
-Default is 0.004 seconds.  This is approximately how long each bit will 
-take to compute; a full byte will take at least 8 times as long.  A 
-higher or lower value will affect entropy distribution, and setting 
-this too low could cause all data to become zero.
+Default is 0.004 seconds.  This is approximately how long each bit 
+candidate will take to compute; actual returned bits may take 2-3 
+times longer due to lost bits due to debiasing.  A higher or lower 
+value will affect entropy distribution, and setting this too low could 
+cause all data to become zero.
 
 =item B<-q> (B<--quiet>)
 
@@ -203,12 +253,13 @@ Do not print status information to STDERR.
 
 =item B<-w> (B<--no-whiten>)
 
-Do not whiten the output by hashing with a cryptographic hash digest.  
-Instead, output the raw bytes.  Running the data through a digest will 
-help correct bias by evening distribution.  Systems such as Linux's 
-seed input will also correct for bias, but doing it ourselves 
-additionally shouldn't hurt.  It also helps with bias when using this 
-program as a direct RNG.
+Do not whiten the output by performing Von Neumann debiasing on bit 
+pairs, or hashing with a cryptographic hash digest.  Instead, output 
+the raw bytes.  Running the data through a digest will help correct 
+bias by evening distribution.  Systems such as Linux's seed input will 
+also correct for bias, but doing it ourselves additionally shouldn't 
+hurt.  It also helps with bias when using this program as a direct 
+RNG.
 
 =back
 
