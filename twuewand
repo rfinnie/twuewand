@@ -70,17 +70,13 @@ my($optresult) = GetOptions(
   'scrypt-maxtime=f' => \$opt_scrypt_maxtime,
 );
 
-if((scalar @ARGV == 0) || $opt_help) {
+if((scalar @ARGV == 0) || $opt_help || $opt_verbose) {
   print STDERR "twuewand version $VERSION\n";
   print STDERR "Copyright (C) 2012 Ryan Finnie <ryan\@finnie.org>\n";
   print STDERR "\n";
-  pod2usage(2);
-}
-
-if($opt_verbose) {
-  print STDERR "twuewand version $VERSION\n";
-  print STDERR "Copyright (C) 2012 Ryan Finnie <ryan\@finnie.org>\n";
-  print STDERR "\n";
+  if((scalar @ARGV == 0) || $opt_help) {
+    pod2usage(2);
+  }
 }
 
 # A digest function object and size of its output.  If debiasing is 
