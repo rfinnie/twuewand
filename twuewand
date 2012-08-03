@@ -156,7 +156,7 @@ my($statebit, $outbitscnt, $outbits, $lastbit, $lastbitheld);
 my($discardedbitcnt) = 0;
 
 my($rawbits, $rawbitscnt, $sha, $shabytes);
-if($has_sha) {
+if($has_hash && $has_sha && $has_aes) {
   # Raw (non-Von Neumann) bits are used to seed a global SHA256 hash.
   $rawbitscnt = 0;
   $rawbits = 0;
@@ -269,7 +269,7 @@ sub tick {
     $outbits = ($outbits << 1) + $statebit;
     $outbitscnt++;
   } else {
-    if($has_sha) {
+    if($has_hash && $has_sha && $has_aes) {
       # The raw bits (all bits, not just bits which pass Von Neumann) are 
       # only used to seed a SHA256 key.  Every time we have 8 full bits, 
       # put a byte into the SHA stream.
