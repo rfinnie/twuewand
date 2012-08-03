@@ -151,12 +151,13 @@ $SIG{ALRM} = "tick";
 my($statebit, $outbitscnt, $outbits, $lastbit, $lastbitheld);
 my($discardedbitcnt) = 0;
 
-my($rawbits, $rawbitscnt, $sha, $shabytes);
+my($rawbits, $rawbitscnt, $sha, $shastreamcnt, $shabuff);
 if($has_hash && $has_sha && $has_aes) {
   # Raw (non-Von Neumann) bits are used to seed a global SHA256 hash.
   $rawbitscnt = 0;
   $rawbits = 0;
-  $shabytes = 0;
+  $shastreamcnt = 0;
+  $shabuff = '';
   $sha = Digest::SHA->new(256);
 }
 
@@ -196,8 +197,8 @@ if($outleft > 0) {
 if(!$opt_quiet && $reqbytes) { print STDERR "\n"; }
 if($opt_verbose && $opt_debias && $reqbytes) {
   printf STDERR "Used %d extra bits (%d%%) while debiasing.\n", $discardedbitcnt, $discardedbitcnt / ($reqbytes * 8 + $discardedbitcnt) * 100;
-  if($has_sha && $shabytes) {
-    printf STDERR "Seeded %d bytes into the SHA key.\n", $shabytes;
+  if($has_sha && $shastreamcnt) {
+    printf STDERR "Seeded %d bytes into the SHA key.\n", $shastreamcnt;
   }
 }
 exit;
@@ -206,6 +207,13 @@ sub process_buffer {
   my $out;
 
   if($has_hash && $has_sha && $has_aes) {
+    # Add the SHA byte buffer to the SHA256 stream and generate a 
+    # hash.
+    if($shabuff) {
+      $shastreamcnt += length($shabuff);
+      $sha->add($shabuff);
+      $shabuff = '';
+    }
     my $aeskey = $sha->clone->digest;
 
     if($has_scrypt) {
@@ -272,9 +280,8 @@ sub tick {
       $rawbits = ($rawbits << 1) + $statebit;
       $rawbitscnt++;
       if($rawbitscnt == 8) {
-        $sha->add($rawbits);
+        $shabuff .= $rawbits;
         $rawbitscnt = 0;
-        $shabytes++;
       }
     }
 
