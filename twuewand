@@ -280,7 +280,7 @@ sub tick {
       $rawbits = ($rawbits << 1) | $statebit;
       $rawbitscnt++;
       if($rawbitscnt == 8) {
-        $shabuff .= $rawbits;
+        $shabuff .= chr($rawbits);
         $rawbitscnt = 0;
       }
     }
