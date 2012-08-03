@@ -21,9 +21,9 @@
 ########################################################################
 
 # Intended usage:
-#   twuewand $(cat /proc/sys/kernel/random/poolsize) >/dev/urandom
+#   twuewand $(($(cat /proc/sys/kernel/random/poolsize)/8)) >/dev/urandom
 
-my $VERSION = '1.1';
+my $VERSION = '1.1+dev';
 
 use warnings;
 use strict;
@@ -33,21 +33,41 @@ use Time::HiRes qw/alarm/;
 use Module::Load::Conditional qw/can_load/;
 # Digest::SHA may be loaded below
 # Digest::MD5 may be loaded below
+# Crypt::Scrypt may be loaded below
+# Crypt::Rijndael may be loaded below
 
 my(
   $opt_help,
   $opt_quiet,
+  $opt_verbose,
   $opt_interval,
-  $opt_nowhiten,
+  $opt_debias,
+  $opt_md5,
+  $opt_sha,
+  $opt_aes,
+  $opt_scrypt,
+  $opt_scrypt_maxtime,
 );
 
 $opt_interval = 0.004;
+$opt_debias = 1;
+$opt_md5 = 1;
+$opt_sha = 1;
+$opt_aes = 1;
+$opt_scrypt = 1;
+$opt_scrypt_maxtime = 1;
 
 my($optresult) = GetOptions(
   'help|?' => \$opt_help,
   'quiet|q' => \$opt_quiet,
+  'verbose|v' => \$opt_verbose,
   'interval|i=f' => \$opt_interval,
-  'no-whiten|w' => \$opt_nowhiten,
+  'debias!' => \$opt_debias,
+  'md5!' => \$opt_md5,
+  'sha!' => \$opt_sha,
+  'aes!' => \$opt_aes,
+  'scrypt!' => \$opt_scrypt,
+  'scrypt-maxtime=f' => \$opt_scrypt_maxtime,
 );
 
 if((scalar @ARGV == 0) || $opt_help) {
@@ -57,35 +77,71 @@ if((scalar @ARGV == 0) || $opt_help) {
   pod2usage(2);
 }
 
-# A digest function object and size of its output.  If whitening is 
+if($opt_verbose) {
+  print STDERR "twuewand version $VERSION\n";
+  print STDERR "Copyright (C) 2012 Ryan Finnie <ryan\@finnie.org>\n";
+  print STDERR "\n";
+}
+
+# A digest function object and size of its output.  If debiasing is 
 # disabled, no digest will be used, and instead bytes will output one 
 # at a time.
 my($digestobj);
 my($digestsize) = 1;
-unless($opt_nowhiten) {
+my($has_hash, $has_sha, $has_md5, $has_aes, $has_scrypt);
+my($outbufflimit) = 16;
+if($opt_debias) {
+  if($opt_verbose) { print STDERR "Von Neumann debiasing will be performed.\n"; }
   # I originally included a minimum version of 4.3.0 when I was using 
   # SHA512, but, err, I have no idea how I came about that version, 
   # since earlier versions appear to have SHA512 support.  But hey, 
   # 4.3.0 was from 2004, so if you're running Perl modules that old, 
   # you've probably got larger problems.
-  if(can_load(modules => {'Digest::SHA' => 4.3.0})) {
+  if($opt_sha && can_load(modules => {'Digest::SHA' => 4.3.0})) {
+    if($opt_verbose) { print STDERR "Digest::SHA will be used for hashing.\n"; }
     require Digest::SHA;
+    $has_hash = 1;
+    $has_sha = 1;
     $digestobj = \&Digest::SHA::sha256;
     $digestsize = 32;
-  } else {
-    unless($opt_quiet) { print STDERR "Warning: Cannot find Digest::SHA; falling back to MD5.\n"; }
+    $outbufflimit = 32;
+    if($opt_scrypt && can_load(modules => {'Crypt::Scrypt' => undef})) {
+      if($opt_verbose) { print STDERR "Crypt::Scrypt will be used for extra hashing.\n"; }
+      require Crypt::Scrypt;
+      $has_scrypt = 1;
+      $digestobj = \&sha256scrypt;
+    }
+    if($opt_aes && can_load(modules => {'Crypt::Rijndael' => undef})) {
+      if($opt_verbose) { print STDERR "Crypt::Rijndael (AES) found; Kaminsky debiasing will be performed.\n"; }
+      require Crypt::Rijndael;
+      $has_aes = 1;
+      # Since in Kaminsky debiasing, the raw generated bits are fed to 
+      # a hash which is used as a key to encrypt the output data, we 
+      # don't want to output the debiased buffer too often.  1024 
+      # bytes is a good round number.
+      $outbufflimit = 1024;
+    }
+  } elsif($opt_md5) {
+    if($opt_verbose) { print STDERR "Digest::SHA not found; using Digest::MD5 for hashing instead.\n"; }
     require Digest::MD5;
+    $has_hash = 1;
+    $has_md5 = 1;
     $digestobj = \&Digest::MD5::md5;
     $digestsize = 16;
+    $outbufflimit = 16;
   }
+} else {
+  if($opt_verbose) { print STDERR "Performing no debiasing whatsoever!\n"; }
 }
+
+if($opt_verbose) { print STDERR "\n"; }
 
 # Number of bytes to generate
 my($reqbytes) = $ARGV[0] + 0;
 # Used for formatting the status output
 my($fmtlen) = length($reqbytes);
 
-# Data stored (up to $digestsize bytes) before whitening/outputting
+# Data stored (up to $digestsize bytes) before debiasing/outputting
 my($outbuff) = "";
 # The length of $outbuff
 my($outbufflen) = 0;
@@ -98,6 +154,16 @@ $SIG{ALRM} = "tick";
 # These variables must be global since the alarm handler relies on them
 my($statebit, $outbitscnt, $outbits, $lastbit, $lastbitheld);
 my($discardedbitcnt) = 0;
+
+my($rawbits, $rawbitscnt, $sha, $shabytes);
+if($has_sha) {
+  # Raw (non-Von Neumann) bits are used to seed a global SHA256 hash.
+  $rawbitscnt = 0;
+  $rawbits = 0;
+  $shabytes = 0;
+  $sha = Digest::SHA->new(256);
+}
+
 for(my($reqbytesi) = 0; $reqbytesi < $reqbytes; $reqbytesi++) {
   $outbitscnt = 0;
   $outbits = 0;
@@ -114,49 +180,108 @@ for(my($reqbytesi) = 0; $reqbytesi < $reqbytes; $reqbytesi++) {
   # Once we have a full byte, add it to the buffer
   $outbuff .= chr($outbits);
   $outbufflen++;
-  unless($opt_quiet) { printf STDERR "%sGenerated: %" . $fmtlen . "i/%i bytes (%3i%%)", chr(13), ($reqbytesi + 1), $reqbytes, (($reqbytesi + 1) / $reqbytes * 100); }
+  if(!$opt_quiet) { printf STDERR "%sGenerated: %" . $fmtlen . "i/%i bytes (%3i%%)", chr(13), ($reqbytesi + 1), $reqbytes, (($reqbytesi + 1) / $reqbytes * 100); }
 
-  # If we have $digestsize bytes, run them through a digest and output the result
-  if($outbufflen == $digestsize) {
-    if($opt_nowhiten) {
-      print $outbuff;
-    } else {
-      print &$digestobj($outbuff);
-    }
-    $outbuff = "";
-    $outbufflen = 0;
-    $outleft -= $digestsize;
+  # If we start to have a lot of data in the output buffer, output the 
+  # fully debiased buffer and start again.  We don't want to do this 
+  # too often, since each output takes a significant time penalty (SHA 
+  # + scrypt + AES at worst).
+  if($outbufflen == $outbufflimit) {
+    print process_buffer();    
   }
-
 }
 
-# If there are any bytes left in the buffer, run them through a digest,
-# truncate and output the result
+# If there are any bytes left in the buffer, output the fully debiased 
+# buffer.
 if($outleft > 0) {
-  if($opt_nowhiten) {
-    print $outbuff;
-  } else {
-    print substr(&$digestobj($outbuff), 0, $outleft);
-  }
-  $outbuff = "";
-  $outbufflen = 0;
-  $outleft = 0;
+  print process_buffer();
 }
 
-unless($opt_quiet || !$reqbytes) { print STDERR "\n"; }
-unless($opt_quiet || $opt_nowhiten || !$reqbytes) { printf STDERR "Discarded %d bits (%d%%) due to whitening.\n", $discardedbitcnt, $discardedbitcnt / ($reqbytes * 8 + $discardedbitcnt) * 100; }
+if(!$opt_quiet && $reqbytes) { print STDERR "\n"; }
+if($opt_verbose && $opt_debias && $reqbytes) {
+  printf STDERR "Used %d extra bits (%d%%) while debiasing.\n", $discardedbitcnt, $discardedbitcnt / ($reqbytes * 8 + $discardedbitcnt) * 100;
+  if($has_sha && $shabytes) {
+    printf STDERR "Seeded %d bytes into the SHA key.\n", $shabytes;
+  }
+}
 exit;
+
+sub process_buffer {
+  my $out;
+
+  if($has_hash && $has_sha && $has_aes) {
+    my $aeskey = $sha->clone->digest;
+
+    if($has_scrypt) {
+      my $scrypt = Crypt::Scrypt->new(
+        key          => chr(0) x 32,
+        max_mem      => 1 << 15,
+        max_mem_frac => 8,
+        max_time     => $opt_scrypt_maxtime
+      );
+
+      # Crypt::Scrypt outputs a portable format.  We're only interested 
+      # in the main payload, which is located 96 bytes in.
+      $aeskey = substr($scrypt->encrypt($aeskey), 96, 32);
+    }
+
+    # Encrypt the output buffer with the modified key.
+    my $cipher = Crypt::Rijndael->new($aeskey, Crypt::Rijndael::MODE_CTR());
+    my $padding = '';
+    if($outleft % 16) {
+      $padding = chr(0) x (16 - ($outleft % 16));
+    }
+    $out = substr($cipher->encrypt($outbuff . $padding), 0, $outleft);
+  } elsif($has_hash) {
+    $out = substr(&$digestobj($outbuff), 0, $outbufflen);
+  } else {
+    $out = $outbuff;
+  }
+
+  $outbuff = "";
+  $outleft -= $outbufflen;
+  $outbufflen = 0;
+
+  return $out;
+}
+
+sub sha256scrypt {
+  my $in = shift;
+  my $scrypt = Crypt::Scrypt->new(
+    key          => chr(0) x 32,
+    max_mem      => 1 << 15,
+    max_mem_frac => 8,
+    max_time     => $opt_scrypt_maxtime
+  );
+
+  # Crypt::Scrypt outputs a portable format.  We're only interested 
+  # in the main payload, which is located 96 bytes in.
+  return substr($scrypt->encrypt(Digest::SHA::sha256($in)), 96, 32);
+}
 
 sub tick {
   # We have a random bit!
 
-  if($opt_nowhiten) {
-    # If no whitening is to be performed, don't bother with the Von 
+  if(!$opt_debias) {
+    # If no debiasing is to be performed, don't bother with the Von 
     # Neumann dance.  Instead, add the state bit directly to the 
     # output bits.
     $outbits = ($outbits << 1) + $statebit;
     $outbitscnt++;
   } else {
+    if($has_sha) {
+      # The raw bits (all bits, not just bits which pass Von Neumann) are 
+      # only used to seed a SHA256 key.  Every time we have 8 full bits, 
+      # put a byte into the SHA stream.
+      $rawbits = ($rawbits << 1) + $statebit;
+      $rawbitscnt++;
+      if($rawbitscnt == 8) {
+        $sha->add($rawbits);
+        $rawbitscnt = 0;
+        $shabytes++;
+      }
+    }
+
     # We want to run the input bits through Von Neumann debiasing, so 
     # the last bit is held for analysis.
     if($lastbitheld) {
@@ -213,63 +338,108 @@ matching bit pairs, and using the first bit for non-matching bit
 pairs.  This reduces bias, at the expense of wasted bits.
 
 This process is performed multiple times until the number of desired 
-bytes have been generated.  The data is then (by default) run through 
-a cryptographic hash digest (default SHA256, but will fall back to MD5 
-if Digest::SHA is not available) to "whiten" and normalize the data 
-before being output.
+bytes have been generated.  The data is then (by default) either run 
+through a cryptographic hash digest (default SHA256, but will fall 
+back to MD5 if Digest::SHA is not available), or encrypted with a 
+hashed key (Kaminsky debiasing) to further debias the data before 
+being output.
 
 twuewand is based on the truerand algorithm, by D. P. Mitchell in 
 1995.  The output of twuewand may be used for random data directly (as 
-long as whitening is not disabled), but its primary purpose is for 
+long as debiasing is not disabled), but its primary purpose is for 
 seeding a PRNG, when a saved PRNG state is not available (on a LiveCD 
-or diskless workstation, for example).  An example use in Linux is:
+or diskless workstation, for example), or when insufficient initial 
+entropy is not available (in a virtual machine, for example).  An 
+example use in Linux is:
 
-    twuewand --no-whiten $(cat /proc/sys/kernel/random/poolsize) >/dev/urandom
+    twuewand $(($(cat /proc/sys/kernel/random/poolsize)/8)) >/dev/urandom
 
-Seeding /dev/urandom will seed both the urandom and random.  Whitening 
+(This example is specific to Linux 2.6 and later.  poolsize in Linux 
+2.6 is represented in its, while 2.4 and earlier is bytes.)
+
+Seeding /dev/urandom will seed both the urandom and random.  Debiasing 
 through twuewand is not strictly necessary when seeding urandom, as 
 the Linux RNG system will consider seeded data to be biased anyway and 
-will perform its own whitening.  Sending data to urandom does not 
+will perform its own debiasing.  Sending data to urandom does not 
 directly insert random data for later re-use, but instead is 
 considered another source of possible entropy and will perform its own 
 filtering.
+
+Unless specifically disabled (see below), twuewand will try to use a 
+variety of debiasing techniques, The most comprehensive method will be 
+chosen, depending on what Perl modules are available.  They include:
+
+=over
+
+Von Neumann simple debiasing.
+
+Kaminsky debiasing, an extension of Von Neumann.  This requires 
+Digest::SHA, Crypt::Rijndael (AES), and optionally Crypt::Scrypt.
+
+Output hashing with SHA256 (Digest::SHA), with additional scrypt 
+modification if available.
+
+Output hashing with MD5 (Digest::MD5).
+
+=back
 
 =head1 OPTIONS
 
 =over
 
-=item B<-i> interval (B<--interval>)
+=item B<-i> interval (B<--interval>=interval)
 
 The alarm interval to set for each bit collection round, in seconds.  
 Default is 0.004 seconds.  This is approximately how long each bit 
 candidate will take to compute; actual returned bits may take 2-3 
 times longer due to lost bits due to debiasing.  A higher or lower 
-value will affect entropy distribution, and setting this too low could 
-cause all data to become zero.
+value will affect raw (pre-debiasing) entropy distribution, and 
+setting this too low could cause all data to become zero.
 
 =item B<-q> (B<--quiet>)
 
 Do not print status information to STDERR.
 
-=item B<-w> (B<--no-whiten>)
+=item B<-v> (B<--verbose>)
 
-Do not whiten the output by performing Von Neumann debiasing on bit 
-pairs, or hashing with a cryptographic hash digest.  Instead, output 
-the raw bytes.  Running the data through a digest will help correct 
-bias by evening distribution.  Systems such as Linux's seed input will 
-also correct for bias, but doing it ourselves additionally shouldn't 
-hurt.  It also helps with bias when using this program as a direct 
-RNG.
+Print additional information to STDERR.
+
+=item B<--no-debias>
+
+Do not perform any sort of debiasing on the output returned from the 
+TrueRand procedure.
+
+=item B<--no-md5>
+
+=item B<--no-sha>
+
+=item B<--no-aes>
+
+=item B<--no-scrypt>
+
+Do not use MD5, SHA(256), AES (Rijndael) or scrypt functionality, even 
+if the appropriate modules are available.
+
+=item B<--scrypt-maxtime>=seconds
+
+When using scrypt functionality, limit scrypt processing time to this 
+number of seconds.  Note that scrypt may internally be used multiple 
+times per run; this option controls the limit at an individual level.  
+Default is 1 second.
 
 =back
 
 =head1 BUGS
 
-Unknown at this time.
+None known, many assumed.
 
 =head1 SEE ALSO
 
 =over
+
+=item Introducing twuewand
+
+http://www.finnie.org/2011/09/25/introducing-twuewand/
 
 =item /dev/random - Wikipedia
 
