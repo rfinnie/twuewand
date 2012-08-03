@@ -270,14 +270,14 @@ sub tick {
     # If no debiasing is to be performed, don't bother with the Von 
     # Neumann dance.  Instead, add the state bit directly to the 
     # output bits.
-    $outbits = ($outbits << 1) & $statebit;
+    $outbits = ($outbits << 1) | $statebit;
     $outbitscnt++;
   } else {
     if($has_hash && $has_sha && $has_aes) {
       # The raw bits (all bits, not just bits which pass Von Neumann) are 
       # only used to seed a SHA256 key.  Every time we have 8 full bits, 
       # put a byte into the SHA stream.
-      $rawbits = ($rawbits << 1) & $statebit;
+      $rawbits = ($rawbits << 1) | $statebit;
       $rawbitscnt++;
       if($rawbitscnt == 8) {
         $shabuff .= $rawbits;
@@ -295,7 +295,7 @@ sub tick {
       } else {
         # Otherwise, shift the working byte and add the PREVIOUS bit.  
         # So (0, 1) becomes 0 and (1, 0) becomes 1.
-        $outbits = ($outbits << 1) & $lastbit;
+        $outbits = ($outbits << 1) | $lastbit;
         $outbitscnt++;
         $discardedbitcnt++;
       }
