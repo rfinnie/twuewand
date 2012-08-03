@@ -137,7 +137,7 @@ my($reqbytes) = $ARGV[0] + 0;
 # Used for formatting the status output
 my($fmtlen) = length($reqbytes);
 
-# Data stored (up to $digestsize bytes) before debiasing/outputting
+# Data stored (up to $outbufflimit bytes) before debiasing/outputting
 my($outbuff) = "";
 # The length of $outbuff
 my($outbufflen) = 0;
