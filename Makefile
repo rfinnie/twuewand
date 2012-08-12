@@ -30,3 +30,23 @@ distclean: clean
 
 clean:
 	rm -f twuewand rndaddentropy
+
+# Docs are shipped pre-compiled
+doc: twuewand.8 twuewand.8.html rndaddentropy.8 rndaddentropy.8.html
+
+twuewand.8: twuewand
+	pod2man -c '' -r '' -s 8 $< >$@
+
+twuewand.8.html: twuewand
+	pod2html $< >$@
+	rm -f pod2htmd.tmp pod2htmi.tmp
+
+rndaddentropy.8:
+	pod2man -c '' -r '' -s 8 src/rndaddentropy.pod >$@
+
+rndaddentropy.8.html:
+	pod2html src/rndaddentropy.pod >$@
+	rm -f pod2htmd.tmp pod2htmi.tmp
+
+doc-clean:
+	rm -f twuewand.8 twuewand.8.html rndaddentropy.8 rndaddentropy.8.html

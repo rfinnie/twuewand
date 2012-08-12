@@ -1,0 +1,41 @@
+=head1 NAME
+
+rndaddentropy - an RNDADDENTROPY ioctl wrapper
+
+=head1 SYNOPSIS
+
+$ENTROPY_GENERATOR | B<rndaddentropy>
+
+=head1 DESCRIPTION
+
+B<rndaddentropy> is used to pipe entropy directly into Linux's primary 
+entropy pool.  This requires superuser privileges.
+
+Adding entropy directly to the primary entropy pool can be very 
+dangerous, a predictable entropy increases the predictability of 
+resulting data from /dev/random and /dev/urandom.  Be sure the entropy 
+is generated from a truly random source, and is properly debiased.
+
+=head1 OPTIONS
+
+=over
+
+=item B<--help>
+
+Display version and usage information.
+
+=back
+
+=head1 BUGS
+
+None known, many assumed.
+
+=head1 SEE ALSO
+
+I<twuewand(8)>, a TrueRand implementation.
+
+=head1 AUTHOR
+
+B<twuewand> was written by Ryan Finnie <ryan@finnie.org>.
+
+=cut

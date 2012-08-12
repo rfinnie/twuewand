@@ -1,0 +1,12 @@
+twuewand, a truerand algorithm for generating entropy
+By Ryan Finnie <ryan@finnie.org>
+http://www.finnie.org/software/twuewand/
+
+ABOUT
+
+twuewand is software that creates hardware-generated random data.  It 
+accomplishes this by exploiting the fact that the CPU clock and the 
+RTC (real-time clock) are physically separate, and that time and work 
+are not linked.
+
+For more information, please see the manpage for twuewand.
