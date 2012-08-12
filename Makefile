@@ -1,9 +1,13 @@
 PREFIX := /usr/local
 
-all: rndaddentropy
+all: twuewand rndaddentropy
 
-rndaddentropy: rndaddentropy.c
-	$(CC) $(CPPFLAGS) -Wall -Werror -Wextra $(CFLAGS) $(LDFLAGS) -o rndaddentropy rndaddentropy.c
+twuewand: src/twuewand.pl
+	perl -pe 's%#EXTRAVERSION#%$(EXTRAVERSION)%g' $< >$@
+	chmod 0755 $@
+
+rndaddentropy: src/rndaddentropy.c
+	$(CC) $(CPPFLAGS) -Wall -Werror -Wextra $(CFLAGS) $(LDFLAGS) -o $@ $<
 
 test:
 	@perl -MGetopt::Long -e 'print "Getopt::Long is installed.\n";'
@@ -25,4 +29,4 @@ install: all
 distclean: clean
 
 clean:
-	rm -f rndaddentropy
+	rm -f twuewand rndaddentropy

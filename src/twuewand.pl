@@ -24,6 +24,7 @@
 #   twuewand $(($(cat /proc/sys/kernel/random/poolsize)/8)) >/dev/urandom
 
 my $VERSION = '1.1+dev';
+my $EXTRAVERSION = '#EXTRAVERSION#';
 
 use warnings;
 use strict;
@@ -35,6 +36,11 @@ use Module::Load::Conditional qw/can_load/;
 # Digest::MD5 may be loaded below
 # Crypt::Scrypt may be loaded below
 # Crypt::Rijndael may be loaded below
+
+my $versionstring = sprintf('twuewand %s%s',
+  $VERSION,
+  ($EXTRAVERSION eq ('#'.'EXTRAVERSION'.'#') ? '' : $EXTRAVERSION)
+);
 
 my(
   $opt_help,
@@ -71,7 +77,7 @@ my($optresult) = GetOptions(
 );
 
 if((scalar @ARGV == 0) || $opt_help || $opt_verbose) {
-  print STDERR "twuewand version $VERSION\n";
+  print STDERR "$versionstring\n";
   print STDERR "Copyright (C) 2012 Ryan Finnie <ryan\@finnie.org>\n";
   print STDERR "\n";
   if((scalar @ARGV == 0) || $opt_help) {
