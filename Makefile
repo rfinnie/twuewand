@@ -20,10 +20,14 @@ test:
 	@perl -MCrypt::Rijndael -e 'print "Crypt::Rijndael is installed.\n";' 2>/dev/null || echo 'Crypt::Rijndael is not installed (but optional).'
 	@echo 'All tests complete.'
 
-install: all
+install: all install-twuewand install-rndaddentropy
+
+install-twuewand:
 	install -d -m 0755 $(DESTDIR)$(PREFIX)/bin
-	install -d -m 0755 $(DESTDIR)$(PREFIX)/sbin
 	install -m 0755 twuewand $(DESTDIR)$(PREFIX)/bin
+
+install-rndaddentropy:
+	install -d -m 0755 $(DESTDIR)$(PREFIX)/sbin
 	install -m 0755 rndaddentropy $(DESTDIR)$(PREFIX)/sbin
 
 distclean: clean
