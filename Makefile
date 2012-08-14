@@ -2,10 +2,14 @@ PREFIX := /usr/local
 UNAME := $(shell uname)
 
 ifeq ($(UNAME), Linux)
-all: twuewand rndaddentropy
+ALLTARGETS := twuewand rndaddentropy
+INSTALLTARGETS := install-twuewand install-rndaddentropy
 else
-all: twuewand
+ALLTARGETS := twuewand
+INSTALLTARGETS := install-twuewand
 endif
+
+all: $(ALLTARGETS)
 
 twuewand: src/twuewand.pl
 	perl -pe 's%#EXTRAVERSION#%$(EXTRAVERSION)%g' $< >$@
@@ -25,11 +29,7 @@ test:
 	@perl -MCrypt::Rijndael -e 'print "Crypt::Rijndael is installed.\n";' 2>/dev/null || echo 'Crypt::Rijndael is not installed (but optional).'
 	@echo 'All tests complete.'
 
-ifeq ($(UNAME), Linux)
-install: all install-twuewand install-rndaddentropy
-else
-install: all install-twuewand
-endif
+install: $(ALLTARGETS) $(INSTALLTARGETS)
 
 install-twuewand:
 	install -d -m 0755 $(DESTDIR)$(PREFIX)/bin
