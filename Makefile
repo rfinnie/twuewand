@@ -56,11 +56,11 @@ twuewand.8.html: twuewand
 	pod2html $< >$@
 	rm -f pod2htmd.tmp pod2htmi.tmp
 
-rndaddentropy.8:
-	pod2man -c '' -r '' -s 8 src/rndaddentropy.pod >$@
+rndaddentropy.8: src/rndaddentropy.pod
+	pod2man -c '' -r '' -s 8 $< >$@
 
-rndaddentropy.8.html:
-	pod2html src/rndaddentropy.pod >$@
+rndaddentropy.8.html: src/rndaddentropy.pod
+	pod2html $< >$@
 	rm -f pod2htmd.tmp pod2htmi.tmp
 
 doc-clean:
