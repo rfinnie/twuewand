@@ -36,6 +36,6 @@ I<twuewand(8)>, a TrueRand implementation.
 
 =head1 AUTHOR
 
-B<twuewand> was written by Ryan Finnie <ryan@finnie.org>.
+B<rndaddentropy> was written by Ryan Finnie <ryan@finnie.org>.
 
 =cut
