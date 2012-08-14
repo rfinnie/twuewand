@@ -4,9 +4,11 @@ UNAME := $(shell uname)
 ifeq ($(UNAME), Linux)
 ALLTARGETS := twuewand rndaddentropy
 INSTALLTARGETS := install-twuewand install-rndaddentropy
+DOCTARGETS := twuewand.8 twuewand.8.html rndaddentropy.8 rndaddentropy.8.html
 else
 ALLTARGETS := twuewand
 INSTALLTARGETS := install-twuewand
+DOCTARGETS := twuewand.8 twuewand.8.html
 endif
 
 all: $(ALLTARGETS)
@@ -45,7 +47,7 @@ clean:
 	rm -f twuewand rndaddentropy
 
 # Docs are shipped pre-compiled
-doc: twuewand.8 twuewand.8.html rndaddentropy.8 rndaddentropy.8.html
+doc: $(DOCTARGETS)
 
 twuewand.8: twuewand
 	pod2man -c '' -r '' -s 8 $< >$@
