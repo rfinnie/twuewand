@@ -9,4 +9,30 @@ accomplishes this by exploiting the fact that the CPU clock and the
 RTC (real-time clock) are physically separate, and that time and work 
 are not linked.
 
-For more information, please see the manpage for twuewand.
+INSTALLATION
+
+twuewand requires Perl 5.6.0 or newer, and several Perl modules, all 
+of which are in a standard Perl installation (though your distribution 
+may split Perl into "base" and "standard" packages). Several 
+non-standard packages are required for optional (but recommended) 
+features, and can be installed from your distribution's package 
+management system or CPAN. They are:
+
+  Digest::SHA (for SHA256 debiasing, and Kaminsky debiasing)
+  Crypt::Rijndael (AES256; for Kaminsky debiasing)
+
+To build and install twuewand:
+
+  make
+  make test
+  make install
+  make clean
+
+On Linux systems, a small C program will also be compiled called 
+rndaddentropy.  This is a wrapper for the RNDADDENTROPY ioctl, and is 
+used for directly adding entropy to the Linux primary pool.  Please 
+see its manpage for more details.
+
+USAGE
+
+Please see the twuewand manpage for invocation options.
