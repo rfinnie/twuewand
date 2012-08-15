@@ -51,7 +51,7 @@ doc: $(DOCTARGETS)
 twuewand.8: twuewand
 	pod2man -c '' -r '' -s 8 $< >$@
 
-twuewand.8.html: twuewand
+twuewand.8.html: src/twuewand.pl
 	pod2html $< >$@
 	rm -f pod2htmd.tmp pod2htmi.tmp
 
