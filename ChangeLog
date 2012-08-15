@@ -1,3 +1,8 @@
+twuewand 2.0 (2012-08-14)
+  * First fully-packaged release
+  * Add Kaminsky debiasing
+  * Add rndaddentropy
+
 twuewand 1.1 (2012-08-02)
   * Add missing Von Neumann debiasing
 

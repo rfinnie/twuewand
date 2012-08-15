@@ -1,5 +1,5 @@
 Name:           twuewand
-Version:        1.1+dev
+Version:        2.0
 Release:        1%{?dist}
 Summary:        A bi-directional ping utility
 

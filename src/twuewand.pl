@@ -23,7 +23,7 @@
 # Intended usage:
 #   twuewand $(($(cat /proc/sys/kernel/random/poolsize)/8)) >/dev/urandom
 
-my $VERSION = '1.1+dev';
+my $VERSION = '2.0';
 my $EXTRAVERSION = '#EXTRAVERSION#';
 
 use warnings;
