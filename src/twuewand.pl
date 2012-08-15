@@ -34,7 +34,6 @@ use Time::HiRes qw/alarm/;
 use Module::Load::Conditional qw/can_load/;
 # Digest::SHA may be loaded below
 # Digest::MD5 may be loaded below
-# Crypt::Scrypt may be loaded below
 # Crypt::Rijndael may be loaded below
 
 my $versionstring = sprintf('twuewand %s%s',
@@ -51,8 +50,6 @@ my(
   $opt_md5,
   $opt_sha,
   $opt_aes,
-  $opt_scrypt,
-  $opt_scrypt_maxtime,
 );
 
 $opt_interval = 0.004;
@@ -60,8 +57,6 @@ $opt_debias = 1;
 $opt_md5 = 1;
 $opt_sha = 1;
 $opt_aes = 1;
-$opt_scrypt = 1;
-$opt_scrypt_maxtime = 1;
 
 my($optresult) = GetOptions(
   'help|?' => \$opt_help,
@@ -72,8 +67,6 @@ my($optresult) = GetOptions(
   'md5!' => \$opt_md5,
   'sha!' => \$opt_sha,
   'aes!' => \$opt_aes,
-  'scrypt!' => \$opt_scrypt,
-  'scrypt-maxtime=f' => \$opt_scrypt_maxtime,
 );
 
 if((scalar @ARGV == 0) || $opt_help || $opt_verbose) {
@@ -90,7 +83,7 @@ if((scalar @ARGV == 0) || $opt_help || $opt_verbose) {
 # at a time.
 my($digestobj);
 my($digestsize) = 1;
-my($has_hash, $has_sha, $has_md5, $has_aes, $has_scrypt);
+my($has_hash, $has_sha, $has_md5, $has_aes);
 my($outbufflimit) = 16;
 if($opt_debias) {
   if($opt_verbose) { print STDERR "Von Neumann debiasing will be performed.\n"; }
@@ -107,12 +100,6 @@ if($opt_debias) {
     $digestobj = \&Digest::SHA::sha256;
     $digestsize = 32;
     $outbufflimit = 32;
-    if($opt_scrypt && can_load(modules => {'Crypt::Scrypt' => undef})) {
-      if($opt_verbose) { print STDERR "Crypt::Scrypt will be used for extra hashing.\n"; }
-      require Crypt::Scrypt;
-      $has_scrypt = 1;
-      $digestobj = \&sha256scrypt;
-    }
     if($opt_aes && can_load(modules => {'Crypt::Rijndael' => undef})) {
       if($opt_verbose) { print STDERR "Crypt::Rijndael (AES) found; Kaminsky debiasing will be performed.\n"; }
       require Crypt::Rijndael;
@@ -188,7 +175,7 @@ for(my($reqbytesi) = 0; $reqbytesi < $reqbytes; $reqbytesi++) {
   # If we start to have a lot of data in the output buffer, output the 
   # fully debiased buffer and start again.  We don't want to do this 
   # too often, since each output takes a significant time penalty (SHA 
-  # + scrypt + AES at worst).
+  # + AES at worst).
   if($outbufflen == $outbufflimit) {
     print process_buffer();    
   }
@@ -222,19 +209,6 @@ sub process_buffer {
     }
     my $aeskey = $sha->clone->digest;
 
-    if($has_scrypt) {
-      my $scrypt = Crypt::Scrypt->new(
-        key          => chr(0) x 32,
-        max_mem      => 1 << 15,
-        max_mem_frac => 8,
-        max_time     => $opt_scrypt_maxtime
-      );
-
-      # Crypt::Scrypt outputs a portable format.  We're only interested 
-      # in the main payload, which is located 96 bytes in.
-      $aeskey = substr($scrypt->encrypt($aeskey), 96, 32);
-    }
-
     # Encrypt the output buffer with the modified key.
     my $cipher = Crypt::Rijndael->new($aeskey, Crypt::Rijndael::MODE_CTR());
     my $padding = '';
@@ -253,20 +227,6 @@ sub process_buffer {
   $outbufflen = 0;
 
   return $out;
-}
-
-sub sha256scrypt {
-  my $in = shift;
-  my $scrypt = Crypt::Scrypt->new(
-    key          => chr(0) x 32,
-    max_mem      => 1 << 15,
-    max_mem_frac => 8,
-    max_time     => $opt_scrypt_maxtime
-  );
-
-  # Crypt::Scrypt outputs a portable format.  We're only interested 
-  # in the main payload, which is located 96 bytes in.
-  return substr($scrypt->encrypt(Digest::SHA::sha256($in)), 96, 32);
 }
 
 sub tick {
@@ -383,10 +343,9 @@ chosen, depending on what Perl modules are available.  They include:
 Von Neumann simple debiasing.
 
 Kaminsky debiasing, an extension of Von Neumann.  This requires 
-Digest::SHA, Crypt::Rijndael (AES), and optionally Crypt::Scrypt.
+Digest::SHA and Crypt::Rijndael (AES).
 
-Output hashing with SHA256 (Digest::SHA), with additional scrypt 
-modification if available.
+Output hashing with SHA256 (Digest::SHA).
 
 Output hashing with MD5 (Digest::MD5).
 
@@ -424,17 +383,8 @@ TrueRand procedure.
 
 =item B<--no-aes>
 
-=item B<--no-scrypt>
-
-Do not use MD5, SHA(256), AES (Rijndael) or scrypt functionality, even 
-if the appropriate modules are available.
-
-=item B<--scrypt-maxtime>=seconds
-
-When using scrypt functionality, limit scrypt processing time to this 
-number of seconds.  Note that scrypt may internally be used multiple 
-times per run; this option controls the limit at an individual level.  
-Default is 1 second.
+Do not use MD5, SHA(256) or AES (Rijndael) functionality, even if the 
+appropriate modules are available.
 
 =back
 
