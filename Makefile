@@ -27,7 +27,6 @@ test:
 	@perl -MModule::Load::Conditional -e 'print "Module::Load::Conditional is installed.\n";'
 	@perl -MDigest::SHA -e 'print "Digest::SHA is installed.\n";' 2>/dev/null || echo 'Digest::SHA is not installed (but optional).'
 	@perl -MDigest::MD5 -e 'print "Digest::MD5 is installed.\n";' 2>/dev/null || echo 'Digest::MD5 is not installed (but optional).'
-	@perl -MCrypt::Scrypt -e 'print "Crypt::Scrypt is installed.\n";' 2>/dev/null || echo 'Crypt::Scrypt is not installed (but optional).'
 	@perl -MCrypt::Rijndael -e 'print "Crypt::Rijndael is installed.\n";' 2>/dev/null || echo 'Crypt::Rijndael is not installed (but optional).'
 	@echo 'All tests complete.'
 
