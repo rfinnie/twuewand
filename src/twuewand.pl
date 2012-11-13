@@ -21,7 +21,7 @@
 ########################################################################
 
 # Intended usage:
-#   twuewand $(($(cat /proc/sys/kernel/random/poolsize)/8)) >/dev/urandom
+#   twuewand $(($(cat /proc/sys/kernel/random/poolsize)/8)) | rndaddentropy
 
 my $VERSION = '2.0';
 my $EXTRAVERSION = '#EXTRAVERSION#';
@@ -321,18 +321,19 @@ or diskless workstation, for example), or when insufficient initial
 entropy is not available (in a virtual machine, for example).  An 
 example use in Linux is:
 
-    twuewand $(($(cat /proc/sys/kernel/random/poolsize)/8)) >/dev/urandom
+    twuewand $(($(cat /proc/sys/kernel/random/poolsize)/8)) | rndaddentropy
 
 (This example is specific to Linux 2.6 and later.  poolsize in Linux 
 2.6 is represented in its, while 2.4 and earlier is bytes.)
 
-Seeding /dev/urandom will seed both the urandom and random.  Debiasing 
-through twuewand is not strictly necessary when seeding urandom, as 
-the Linux RNG system will consider seeded data to be biased anyway and 
-will perform its own debiasing.  Sending data to urandom does not 
-directly insert random data for later re-use, but instead is 
-considered another source of possible entropy and will perform its own 
-filtering.
+B<rndaddentropy> is a helper utility to send data to the RNDADDENTROPY 
+ioctl.  This can be dangerous without a good source of entropy (such as 
+a hardware key or twuewand with sufficient debiasing); see 
+I<rndaddentropy(8)> for details.
+
+You may also send twuewand output to /dev/random or /dev/urandom, but 
+this merely "stirs the pot", and does not directly add entropy to the 
+pool.
 
 Unless specifically disabled (see below), twuewand will try to use a 
 variety of debiasing techniques, The most comprehensive method will be 
@@ -395,6 +396,10 @@ None known, many assumed.
 =head1 SEE ALSO
 
 =over
+
+=item I<rndaddentropy(8)>
+
+A utility to send entropy directly to Linux's entropy pools
 
 =item Introducing twuewand
 
