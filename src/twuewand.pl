@@ -30,7 +30,7 @@ use warnings;
 use strict;
 use Getopt::Long;
 use Pod::Usage;
-use Time::HiRes qw/alarm/;
+use Time::HiRes qw/alarm time/;
 use Module::Load::Conditional qw/can_load/;
 # Digest::SHA may be loaded below
 # Digest::MD5 may be loaded below
@@ -46,6 +46,8 @@ my(
   $opt_quiet,
   $opt_verbose,
   $opt_interval,
+  $opt_bytes,
+  $opt_seconds,
   $opt_debias,
   $opt_md5,
   $opt_sha,
@@ -53,6 +55,8 @@ my(
 );
 
 $opt_interval = 0.004;
+$opt_bytes = 0;
+$opt_seconds = 0;
 $opt_debias = 1;
 $opt_md5 = 1;
 $opt_sha = 1;
@@ -63,17 +67,23 @@ my($optresult) = GetOptions(
   'quiet|q' => \$opt_quiet,
   'verbose|v' => \$opt_verbose,
   'interval|i=f' => \$opt_interval,
+  'bytes|b=f' => \$opt_bytes,
+  'seconds|s=f' => \$opt_seconds,
   'debias!' => \$opt_debias,
   'md5!' => \$opt_md5,
   'sha!' => \$opt_sha,
   'aes!' => \$opt_aes,
 );
 
-if((scalar @ARGV == 0) || $opt_help || $opt_verbose) {
+if($ARGV[0] && (int($ARGV[0]) > 0)) {
+  $opt_bytes = int($ARGV[0]);
+}
+
+if(!($opt_bytes || $opt_seconds) || $opt_help || $opt_verbose) {
   print STDERR "$versionstring\n";
   print STDERR "Copyright (C) 2012 Ryan Finnie <ryan\@finnie.org>\n";
   print STDERR "\n";
-  if((scalar @ARGV == 0) || $opt_help) {
+  if(!($opt_bytes || $opt_seconds) || $opt_help) {
     pod2usage(2);
   }
 }
@@ -125,11 +135,6 @@ if($opt_debias) {
 
 if($opt_verbose) { print STDERR "\n"; }
 
-# Number of bytes to generate
-my($reqbytes) = $ARGV[0] + 0;
-# Used for formatting the status output
-my($fmtlen) = length($reqbytes);
-
 # Data stored (up to $outbufflimit bytes) before debiasing/outputting
 my($outbuff) = "";
 # The length of $outbuff
@@ -153,7 +158,8 @@ if($has_hash && $has_sha && $has_aes) {
   $sha = Digest::SHA->new(256);
 }
 
-for(my($reqbytesi) = 0; $reqbytesi < $reqbytes; $reqbytesi++) {
+my $started = time();
+for(my($reqbytesi) = 0; ($opt_seconds ? (time() < ($started + $opt_seconds)) : ($reqbytesi < $opt_bytes)); $reqbytesi++) {
   $outbitscnt = 0;
   $outbitsint = 0;
   # Set the alarm
@@ -169,7 +175,13 @@ for(my($reqbytesi) = 0; $reqbytesi < $reqbytes; $reqbytesi++) {
   # Once we have a full byte, add it to the buffer
   $outbuff .= chr($outbitsint);
   $outbufflen++;
-  if(!$opt_quiet) { printf STDERR "%sGenerated: %" . $fmtlen . "i/%i bytes (%3i%%)", chr(13), ($reqbytesi + 1), $reqbytes, (($reqbytesi + 1) / $reqbytes * 100); }
+  if(!$opt_quiet) {
+    if($opt_seconds) {
+      printf STDERR "%sGenerated: %i bytes (%i/%is)", chr(13), ($reqbytesi + 1), (time() - $started), $opt_seconds;
+    } else {
+      printf STDERR "%sGenerated: %" . length($opt_bytes) . "i/%i bytes (%3i%%)", chr(13), ($reqbytesi + 1), $opt_bytes, (($reqbytesi + 1) / $opt_bytes * 100);
+    }
+  }
 
   # If we start to have a lot of data in the output buffer, output the 
   # fully debiased buffer and start again.  We don't want to do this 
@@ -190,9 +202,13 @@ sub finalize_run {
     print process_buffer();
   }
 
-  if(!$opt_quiet && $reqbytes) { print STDERR "\n"; }
-  if($opt_verbose && $opt_debias && $reqbytes) {
-    printf STDERR "Used %d extra bits (%d%%) while debiasing.\n", $discardedbitcnt, $discardedbitcnt / ($reqbytes * 8 + $discardedbitcnt) * 100;
+  if(!$opt_quiet) { print STDERR "\n"; }
+  if($opt_verbose && $opt_debias) {
+    if($opt_seconds) {
+      printf STDERR "Used %d extra bits while debiasing.\n", $discardedbitcnt;
+    } else {
+      printf STDERR "Used %d extra bits (%d%%) while debiasing.\n", $discardedbitcnt, $discardedbitcnt / ($opt_bytes * 8 + $discardedbitcnt) * 100;
+    }
     if($has_sha && $shastreamcnt) {
       printf STDERR "Seeded %d bytes into the SHA key.\n", $shastreamcnt;
     }
