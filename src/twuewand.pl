@@ -248,6 +248,7 @@ sub tick {
       if($rawbitscnt == 8) {
         $shabuff .= chr($rawbitsint);
         $rawbitscnt = 0;
+        $rawbitsint = 0;
       }
     }
 
