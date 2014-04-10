@@ -137,6 +137,7 @@ my($outbufflen) = 0;
 
 # Signal handlers
 $SIG{ALRM} = "tick";
+$SIG{INT} = "sig_int";
 
 # These variables must be global since the alarm handler relies on them
 my($statebitint, $outbitscnt, $outbitsint, $lastbitint, $lastbitheld);
@@ -179,20 +180,24 @@ for(my($reqbytesi) = 0; $reqbytesi < $reqbytes; $reqbytesi++) {
   }
 }
 
-# If there are any bytes left in the buffer, output the fully debiased 
-# buffer.
-if($outbufflen > 0) {
-  print process_buffer();
-}
+finalize_run();
+exit;
 
-if(!$opt_quiet && $reqbytes) { print STDERR "\n"; }
-if($opt_verbose && $opt_debias && $reqbytes) {
-  printf STDERR "Used %d extra bits (%d%%) while debiasing.\n", $discardedbitcnt, $discardedbitcnt / ($reqbytes * 8 + $discardedbitcnt) * 100;
-  if($has_sha && $shastreamcnt) {
-    printf STDERR "Seeded %d bytes into the SHA key.\n", $shastreamcnt;
+sub finalize_run {
+  # If there are any bytes left in the buffer, output the fully debiased 
+  # buffer.
+  if($outbufflen > 0) {
+    print process_buffer();
+  }
+
+  if(!$opt_quiet && $reqbytes) { print STDERR "\n"; }
+  if($opt_verbose && $opt_debias && $reqbytes) {
+    printf STDERR "Used %d extra bits (%d%%) while debiasing.\n", $discardedbitcnt, $discardedbitcnt / ($reqbytes * 8 + $discardedbitcnt) * 100;
+    if($has_sha && $shastreamcnt) {
+      printf STDERR "Seeded %d bytes into the SHA key.\n", $shastreamcnt;
+    }
   }
 }
-exit;
 
 sub process_buffer {
   my $out;
@@ -278,6 +283,11 @@ sub tick {
   if($outbitscnt < 8) {
     $statebitint = 0; alarm($opt_interval);
   }
+}
+
+sub sig_int {
+  finalize_run();
+  exit;
 }
 
 __END__
