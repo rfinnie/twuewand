@@ -134,8 +134,6 @@ my($fmtlen) = length($reqbytes);
 my($outbuff) = "";
 # The length of $outbuff
 my($outbufflen) = 0;
-# Number of bytes left to generate (refreshed when $outbuff is flushed)
-my($outleft) = $reqbytes;
 
 # Signal handlers
 $SIG{ALRM} = "tick";
@@ -183,7 +181,7 @@ for(my($reqbytesi) = 0; $reqbytesi < $reqbytes; $reqbytesi++) {
 
 # If there are any bytes left in the buffer, output the fully debiased 
 # buffer.
-if($outleft > 0) {
+if($outbufflen > 0) {
   print process_buffer();
 }
 
@@ -212,10 +210,10 @@ sub process_buffer {
     # Encrypt the output buffer with the modified key.
     my $cipher = Crypt::Rijndael->new($aeskey, Crypt::Rijndael::MODE_CTR());
     my $padding = '';
-    if($outleft % 16) {
-      $padding = chr(0) x (16 - ($outleft % 16));
+    if($outbufflen % 16) {
+      $padding = chr(0) x (16 - ($outbufflen % 16));
     }
-    $out = substr($cipher->encrypt($outbuff . $padding), 0, $outleft);
+    $out = substr($cipher->encrypt($outbuff . $padding), 0, $outbufflen);
   } elsif($has_hash) {
     $out = substr(&$digestobj($outbuff), 0, $outbufflen);
   } else {
@@ -223,7 +221,6 @@ sub process_buffer {
   }
 
   $outbuff = "";
-  $outleft -= $outbufflen;
   $outbufflen = 0;
 
   return $out;
