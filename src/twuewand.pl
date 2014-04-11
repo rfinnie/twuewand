@@ -54,7 +54,7 @@ my(
   $opt_aes,
 );
 
-$opt_interval = 0.004;
+$opt_interval = 0;
 $opt_bytes = 0;
 $opt_seconds = 0;
 $opt_debias = 1;
@@ -135,6 +135,22 @@ if($opt_debias) {
 
 if($opt_verbose) { print STDERR "\n"; }
 
+# Enable adaptive mode if no interval set.
+my($opt_adaptive);
+if($opt_interval) {
+  $opt_adaptive = 0;
+} else {
+  $opt_adaptive = 1;
+  # 4ms becomes the default starting point in adaptive mode.
+  $opt_interval = 0.004;
+}
+
+# Do not use a smaller interval than CLOCK_REALTIME.
+my($min_interval) = Time::HiRes::clock_getres(Time::HiRes::CLOCK_REALTIME());
+if($opt_interval < $min_interval) {
+  $opt_interval = $min_interval;
+}
+
 # Data stored (up to $outbufflimit bytes) before debiasing/outputting
 my($outbuff) = "";
 # The length of $outbuff
@@ -158,6 +174,12 @@ if($has_hash && $has_sha && $has_aes) {
   $sha = Digest::SHA->new(256);
 }
 
+# Target number of flips per byte (99.90% confidence (Z=3.3), 0.01 max
+# error).
+my $adaptive_target = 27225;
+# Average calculated interval.
+my $adaptive_avginterval = 0;
+
 my $started = time();
 for(my($reqbytesi) = 0; ($opt_seconds ? (time() < ($started + $opt_seconds)) : ($reqbytesi < $opt_bytes)); $reqbytesi++) {
   $outbitscnt = 0;
@@ -165,11 +187,41 @@ for(my($reqbytesi) = 0; ($opt_seconds ? (time() < ($started + $opt_seconds)) : (
   # Set the alarm
   $statebitint = 0; alarm($opt_interval);
 
-  # Flip a state bit until a full byte is built.
-  # Note: the alarm handler will reset $statebitint to 0 after an output bit
-  # is generated.
-  while($outbitscnt < 8) {
-    $statebitint ^= 1;
+  if($opt_adaptive) {
+    # Number of bit flips in the last byte.
+    my $adaptive_flipcount = 0;
+
+    # Flip a state bit until a full byte is built.
+    # Note: the alarm handler will reset $statebitint to 0 after an output
+    # bit is generated.
+    while($outbitscnt < 8) {
+      $statebitint ^= 1;
+      $adaptive_flipcount++;
+    }
+
+    # If this is the first sample, seed the average interval with a best
+    # guess.
+    if($adaptive_avginterval == 0) {
+      $adaptive_avginterval = $adaptive_target / ($adaptive_flipcount / $opt_interval);
+    } else {
+      # Update the average target interval with a modified moving
+      # average (MMA)
+      $adaptive_avginterval = ($reqbytesi * $adaptive_avginterval + ($adaptive_target / ($adaptive_flipcount / $opt_interval))) / ($reqbytesi + 1);
+    }
+    $opt_interval = $adaptive_avginterval;
+
+    # If the calculated interval is lower than Time::HiRes's
+    # CLOCK_REALTIME, use CLOCK_REALTIME instead.
+    if($opt_interval < $min_interval) {
+      $opt_interval = $min_interval;
+    }
+  } else {
+    # Flip a state bit until a full byte is built.
+    # Note: the alarm handler will reset $statebitint to 0 after an output
+    # bit is generated.
+    while($outbitscnt < 8) {
+      $statebitint ^= 1;
+    }
   }
 
   # Once we have a full byte, add it to the buffer
@@ -323,12 +375,12 @@ It accomplishes this by exploiting the fact that the CPU clock and the
 RTC (real-time clock) are physically separate, and that time and work 
 are not linked.
 
-twuewand schedules a SIGALRM for a short time in the future (0.004 
-seconds by default), then begins flipping a bit as fast as possible.  
-When the alarm is delivered, the bit's state is recorded.  Von Neumann 
-debiasing is (by default) performed on bit pairs, throwing out 
-matching bit pairs, and using the first bit for non-matching bit 
-pairs.  This reduces bias, at the expense of wasted bits.
+twuewand schedules a SIGALRM for a short time in the future, then begins 
+flipping a bit as fast as possible.  When the alarm is delivered, the 
+bit's state is recorded.  Von Neumann debiasing is (by default) 
+performed on bit pairs, throwing out matching bit pairs, and using the 
+first bit for non-matching bit pairs.  This reduces bias, at the expense 
+of wasted bits.
 
 This process is performed multiple times until the number of desired 
 bytes have been generated.  The data is then (by default) either run 
@@ -383,11 +435,14 @@ Output hashing with MD5 (Digest::MD5).
 =item B<-i> interval (B<--interval>=interval)
 
 The alarm interval to set for each bit collection round, in seconds.  
-Default is 0.004 seconds.  This is approximately how long each bit 
-candidate will take to compute; actual returned bits may take 2-3 
-times longer due to lost bits due to debiasing.  A higher or lower 
-value will affect raw (pre-debiasing) entropy distribution, and 
-setting this too low could cause all data to become zero.
+This is approximately how long each raw bit candidate will take to 
+compute; actual returned bits may take 2-3 times longer due to lost bits 
+due to debiasing.  A higher or lower value will affect raw 
+(pre-debiasing) entropy distribution, and setting this too low could 
+cause all data to become zero.
+
+When not set, twuewand uses an adaptive mode which figures out how 
+quickly a bit can safely be generated.
 
 =item B<-q> (B<--quiet>)
 
