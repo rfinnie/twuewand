@@ -181,7 +181,8 @@ my $adaptive_target = 27225;
 my $adaptive_avginterval = 0;
 
 my $started = time();
-for(my($reqbytesi) = 0; ($opt_seconds ? (time() < ($started + $opt_seconds)) : ($reqbytesi < $opt_bytes)); $reqbytesi++) {
+my $reqbytesi = 0;
+while(1) {
   $outbitscnt = 0;
   $outbitsint = 0;
   # Set the alarm
@@ -228,10 +229,13 @@ for(my($reqbytesi) = 0; ($opt_seconds ? (time() < ($started + $opt_seconds)) : (
   $outbuff .= chr($outbitsint);
   $outbufflen++;
   if(!$opt_quiet) {
-    if($opt_seconds) {
-      printf STDERR "%sGenerated: %i bytes (%i/%is)", chr(13), ($reqbytesi + 1), (time() - $started), $opt_seconds;
+    if($opt_bytes) {
+      printf STDERR "%sGenerated: %d/%d bytes (%3d%%)", chr(13), ($reqbytesi + 1), $opt_bytes, (($reqbytesi + 1) / $opt_bytes * 100);
     } else {
-      printf STDERR "%sGenerated: %" . length($opt_bytes) . "i/%i bytes (%3i%%)", chr(13), ($reqbytesi + 1), $opt_bytes, (($reqbytesi + 1) / $opt_bytes * 100);
+      printf STDERR "%sGenerated: %d bytes", chr(13), ($reqbytesi + 1);
+    }
+    if($opt_seconds) {
+      printf STDERR " (%d/%ds)", (time() - $started), $opt_seconds;
     }
   }
 
@@ -242,6 +246,10 @@ for(my($reqbytesi) = 0; ($opt_seconds ? (time() < ($started + $opt_seconds)) : (
   if($outbufflen == $outbufflimit) {
     print process_buffer();    
   }
+
+  $reqbytesi++;
+  last if($opt_seconds && (time() >= ($started + $opt_seconds)));
+  last if($opt_bytes && ($reqbytesi == $opt_bytes));
 }
 
 finalize_run();
@@ -256,11 +264,7 @@ sub finalize_run {
 
   if(!$opt_quiet) { print STDERR "\n"; }
   if($opt_verbose && $opt_debias) {
-    if($opt_seconds) {
-      printf STDERR "Used %d extra bits while debiasing.\n", $discardedbitcnt;
-    } else {
-      printf STDERR "Used %d extra bits (%d%%) while debiasing.\n", $discardedbitcnt, $discardedbitcnt / ($opt_bytes * 8 + $discardedbitcnt) * 100;
-    }
+    printf STDERR "Used %d extra bits (%d%%) while debiasing.\n", $discardedbitcnt, $discardedbitcnt / ($reqbytesi * 8 + $discardedbitcnt) * 100;
     if($has_sha && $shastreamcnt) {
       printf STDERR "Seeded %d bytes into the SHA key.\n", $shastreamcnt;
     }
