@@ -67,7 +67,7 @@ my($optresult) = GetOptions(
   'quiet|q' => \$opt_quiet,
   'verbose|v' => \$opt_verbose,
   'interval|i=f' => \$opt_interval,
-  'bytes|b=f' => \$opt_bytes,
+  'bytes|b=i' => \$opt_bytes,
   'seconds|s=f' => \$opt_seconds,
   'debias!' => \$opt_debias,
   'md5!' => \$opt_md5,
