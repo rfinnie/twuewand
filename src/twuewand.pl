@@ -448,6 +448,17 @@ cause all data to become zero.
 When not set, twuewand uses an adaptive mode which figures out how 
 quickly a bit can safely be generated.
 
+=item B<-b> bytes (B<--bytes>=bytes)
+
+The number of bytes to generate.  If both --bytes and --seconds are set, 
+twuewand will exit when either condition is satisfied first.
+
+=item B<-s> seconds (B<--seconds>=seconds)
+
+The number of seconds to generate bytes.  This can be a fraction of a 
+second.  If both --bytes and --seconds are set, twuewand will exit when 
+either condition is satisfied first.
+
 =item B<-q> (B<--quiet>)
 
 Do not print status information to STDERR.
