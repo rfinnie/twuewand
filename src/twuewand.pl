@@ -31,6 +31,7 @@ use strict;
 use Getopt::Long;
 use Pod::Usage;
 use Time::HiRes qw/alarm time/;
+use IO::Handle;
 use Module::Load::Conditional qw/can_load/;
 # Digest::SHA may be loaded below
 # Digest::MD5 may be loaded below
@@ -244,7 +245,7 @@ while(1) {
   # too often, since each output takes a significant time penalty (SHA 
   # + AES at worst).
   if($outbufflen == $outbufflimit) {
-    print process_buffer();    
+    STDOUT->printflush(process_buffer());
   }
 
   $reqbytesi++;
@@ -259,7 +260,7 @@ sub finalize_run {
   # If there are any bytes left in the buffer, output the fully debiased 
   # buffer.
   if($outbufflen > 0) {
-    print process_buffer();
+    STDOUT->printflush(process_buffer());
   }
 
   if(!$opt_quiet) { print STDERR "\n"; }
