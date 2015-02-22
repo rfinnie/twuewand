@@ -142,8 +142,8 @@ if($opt_interval) {
   $opt_adaptive = 0;
 } else {
   $opt_adaptive = 1;
-  # 4ms becomes the default starting point in adaptive mode.
-  $opt_interval = 0.004;
+  # 20ms becomes the default starting point in adaptive mode.
+  $opt_interval = 0.02;
 }
 
 # Do not use a smaller interval than CLOCK_REALTIME.
@@ -181,6 +181,9 @@ my $adaptive_target = 27225;
 # Average calculated interval.
 my $adaptive_avginterval = 0;
 
+if(!$opt_quiet) {
+  print STDERR "Generated: 0 bytes";
+}
 my $started = time();
 my $reqbytesi = 0;
 while(1) {
