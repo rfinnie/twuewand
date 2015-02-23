@@ -154,16 +154,18 @@ if($opt_interval < $min_interval) {
 
 # Data stored (up to $outbufflimit bytes) before debiasing/outputting
 my($outbuff) = "";
-# The length of $outbuff
-my($outbufflen) = 0;
 
 # Signal handlers
 $SIG{ALRM} = "tick";
 $SIG{INT} = "sig_int";
 
 # These variables must be global since the alarm handler relies on them
-my($statebitint, $outbitscnt, $outbitsint, $lastbitint, $lastbitheld);
+my($increment) = 0;
 my($discardedbitcnt) = 0;
+my($tickbuff) = 0;
+my($tickbuffcnt) = 0;
+my($outbitscnt) = 0;
+my($outbitsint) = 0;
 
 my($rawbitsint, $rawbitscnt, $sha, $shastreamcnt, $shabuff);
 if($has_hash && $has_sha && $has_aes) {
@@ -175,11 +177,13 @@ if($has_hash && $has_sha && $has_aes) {
   $sha = Digest::SHA->new(256);
 }
 
-# Target number of flips per byte (99.90% confidence (Z=3.3), 0.01 max
-# error).
-my $adaptive_target = 27225;
+# Target number of flips per byte, FIPS 140-2
+# (99.993% confidence (Z=4.0), 0.01 max error)
+my $adaptive_target = (4.0 ** 2) / (4 * (0.01 ** 2));
 # Average calculated interval.
-my $adaptive_avginterval = 0;
+my $ewma = 0;
+# Round length will increase from 2 to 32 bits.
+my $round_length = 2;
 
 if(!$opt_quiet) {
   print STDERR "Generated: 0 bytes";
@@ -187,56 +191,98 @@ if(!$opt_quiet) {
 my $started = time();
 my $reqbytesi = 0;
 while(1) {
-  $outbitscnt = 0;
-  $outbitsint = 0;
   # Set the alarm
-  $statebitint = 0; alarm($opt_interval);
+  $increment = 0; alarm($opt_interval);
+
+  # Increment a number until the round is over.
+  # Note: the alarm handler will reset $increment to 0 after a
+  # bit is generated.
+  while($tickbuffcnt < $round_length) {
+    $increment++;
+  }
+
+  if($opt_debias) {
+    while($tickbuffcnt > 1) {
+      # Take two bits from the tick buffer
+      my $statebitint = $tickbuff % 4;
+      $tickbuff = $tickbuff >> 2;
+      $tickbuffcnt -= 2;
+
+      if($has_hash && $has_sha && $has_aes) {
+        # The raw bits (all bits, not just bits which pass Von Neumann) are 
+        # only used to seed a SHA256 key.  Every time we have 8 full bits, 
+        # put a byte into the SHA stream.
+        $rawbitsint = ($rawbitsint << 2) | $statebitint;
+        $rawbitscnt += 2;
+        if($rawbitscnt == 8) {
+          $shabuff .= chr($rawbitsint);
+          $rawbitscnt = 0;
+          $rawbitsint = 0;
+        }
+      }
+
+      # Von Neumann
+      if(($statebitint == 1) || ($statebitint == 2)) {
+        $outbitsint = ($outbitsint << 1) | ($statebitint % 2);
+        $outbitscnt++;
+        $discardedbitcnt++;
+      } else {
+        $discardedbitcnt += 2;
+      }
+
+      # Once we have a full byte, add it to the buffer
+      while($outbitscnt >= 8) {
+        $outbuff .= chr($outbitsint % 256);
+        $outbitsint = $outbitsint >> 8;
+        $outbitscnt -= 8;
+        $reqbytesi++;
+      }
+    }
+  } else {
+    # If no debiasing is to be performed, don't bother with the Von 
+    # Neumann dance.  Instead, add the tick buffer directly to the 
+    # output buffer.
+    while($tickbuffcnt >= 8) {
+      $outbuff .= chr($tickbuff % 256);
+      $tickbuff = $tickbuff >> 8;
+      $tickbuffcnt -= 8;
+      $reqbytesi++;
+    }
+  }
 
   if($opt_adaptive) {
-    # Number of bit flips in the last byte.
-    my $adaptive_flipcount = 0;
-
-    # Flip a state bit until a full byte is built.
-    # Note: the alarm handler will reset $statebitint to 0 after an output
-    # bit is generated.
-    while($outbitscnt < 8) {
-      $statebitint ^= 1;
-      $adaptive_flipcount++;
-    }
-
-    # If this is the first sample, seed the average interval with a best
-    # guess.
-    if($adaptive_avginterval == 0) {
-      $adaptive_avginterval = $adaptive_target / ($adaptive_flipcount / $opt_interval);
+    # Update the target interval
+    if($ewma == 0) {
+      $ewma = ($adaptive_target / ($increment / $opt_interval)) * 8;
     } else {
-      # Update the average target interval with a modified moving
-      # average (MMA)
-      $adaptive_avginterval = ($reqbytesi * $adaptive_avginterval + ($adaptive_target / ($adaptive_flipcount / $opt_interval))) / ($reqbytesi + 1);
+      $ewma = $ewma + (($adaptive_target / ($increment / $opt_interval)) - ($ewma / 8));
     }
-    $opt_interval = $adaptive_avginterval;
+    $opt_interval = $ewma / 8;
 
     # If the calculated interval is lower than Time::HiRes's
     # CLOCK_REALTIME, use CLOCK_REALTIME instead.
     if($opt_interval < $min_interval) {
       $opt_interval = $min_interval;
     }
-  } else {
-    # Flip a state bit until a full byte is built.
-    # Note: the alarm handler will reset $statebitint to 0 after an output
-    # bit is generated.
-    while($outbitscnt < 8) {
-      $statebitint ^= 1;
-    }
   }
 
-  # Once we have a full byte, add it to the buffer
-  $outbuff .= chr($outbitsint);
-  $outbufflen++;
+  # Increase the round length as we get better at calculating times.
+  if($round_length < 32) {
+    $round_length += 2;
+  }
+
+  # If we generated too many bytes, strip some off.
+  if($opt_bytes && ($reqbytesi > $opt_bytes)) {
+    $outbuff = substr($outbuff, 0, ($reqbytesi - $opt_bytes));
+    $discardedbitcnt += (($opt_bytes - $reqbytesi) * 8);
+    $reqbytesi = $opt_bytes;
+  }
+
   if(!$opt_quiet) {
     if($opt_bytes) {
-      printf STDERR "%sGenerated: %d/%d bytes (%3d%%)", chr(13), ($reqbytesi + 1), $opt_bytes, (($reqbytesi + 1) / $opt_bytes * 100);
+      printf STDERR "%sGenerated: %d/%d bytes (%3d%%)", chr(13), $reqbytesi, $opt_bytes, ($reqbytesi / $opt_bytes * 100);
     } else {
-      printf STDERR "%sGenerated: %d bytes", chr(13), ($reqbytesi + 1);
+      printf STDERR "%sGenerated: %d bytes", chr(13), $reqbytesi;
     }
     if($opt_seconds) {
       printf STDERR " (%d/%ds)", (time() - $started), $opt_seconds;
@@ -247,13 +293,12 @@ while(1) {
   # fully debiased buffer and start again.  We don't want to do this 
   # too often, since each output takes a significant time penalty (SHA 
   # + AES at worst).
-  if($outbufflen == $outbufflimit) {
-    STDOUT->printflush(process_buffer());
+  if(length($outbuff) >= $outbufflimit) {
+    process_buffer();
   }
 
-  $reqbytesi++;
   last if($opt_seconds && (time() >= ($started + $opt_seconds)));
-  last if($opt_bytes && ($reqbytesi == $opt_bytes));
+  last if($opt_bytes && ($reqbytesi >= $opt_bytes));
 }
 
 finalize_run();
@@ -262,13 +307,17 @@ exit;
 sub finalize_run {
   # If there are any bytes left in the buffer, output the fully debiased 
   # buffer.
-  if($outbufflen > 0) {
-    STDOUT->printflush(process_buffer());
+  if(length($outbuff) > 0) {
+    process_buffer();
   }
 
   if(!$opt_quiet) { print STDERR "\n"; }
-  if($opt_verbose && $opt_debias) {
-    printf STDERR "Used %d extra bits (%d%%) while debiasing.\n", $discardedbitcnt, $discardedbitcnt / ($reqbytesi * 8 + $discardedbitcnt) * 100;
+  if($opt_verbose) {
+    my $total_bits = $reqbytesi * 8 + $discardedbitcnt;
+    printf STDERR "Raw speed was %0.02f bps at the end.\n", 1 / $opt_interval;
+    if($discardedbitcnt > 0) {
+      printf STDERR "Used %d extra bits (%d%%) of overhead.\n", $discardedbitcnt, $discardedbitcnt / $total_bits * 100;
+    }
     if($has_sha && $shastreamcnt) {
       printf STDERR "Seeded %d bytes into the SHA key.\n", $shastreamcnt;
     }
@@ -278,6 +327,7 @@ sub finalize_run {
 sub process_buffer {
   my $out;
 
+  my $outbufflen = length($outbuff);
   if($has_hash && $has_sha && $has_aes) {
     # Add the SHA byte buffer to the SHA256 stream and generate a 
     # hash.
@@ -301,63 +351,20 @@ sub process_buffer {
     $out = $outbuff;
   }
 
+  STDOUT->printflush($outbuff);
+
   $outbuff = "";
   $outbufflen = 0;
-
-  return $out;
 }
 
 sub tick {
   # We have a random bit!
+  $tickbuff = ($tickbuff << 1) | ($increment % 2);
+  $tickbuffcnt++;
 
-  if(!$opt_debias) {
-    # If no debiasing is to be performed, don't bother with the Von 
-    # Neumann dance.  Instead, add the state bit directly to the 
-    # output bits.
-    $outbitsint = ($outbitsint << 1) | $statebitint;
-    $outbitscnt++;
-  } else {
-    if($has_hash && $has_sha && $has_aes) {
-      # The raw bits (all bits, not just bits which pass Von Neumann) are 
-      # only used to seed a SHA256 key.  Every time we have 8 full bits, 
-      # put a byte into the SHA stream.
-      $rawbitsint = ($rawbitsint << 1) | $statebitint;
-      $rawbitscnt++;
-      if($rawbitscnt == 8) {
-        $shabuff .= chr($rawbitsint);
-        $rawbitscnt = 0;
-        $rawbitsint = 0;
-      }
-    }
-
-    # We want to run the input bits through Von Neumann debiasing, so 
-    # the last bit is held for analysis.
-    if($lastbitheld) {
-      if(($lastbitint && $statebitint) || (!$lastbitint && !$statebitint)) {
-        # If this bit and the last bit are both 0 or both 1, simply 
-        # throw out both bits.
-        $discardedbitcnt += 2;
-      } else {
-        # Otherwise, shift the working byte and add the PREVIOUS bit.  
-        # So (0, 1) becomes 0 and (1, 0) becomes 1.
-        $outbitsint = ($outbitsint << 1) | $lastbitint;
-        $outbitscnt++;
-        $discardedbitcnt++;
-      }
-      # Forget about the last bit.  The next bit to be generated will be 
-      # the first part of the pair.
-      $lastbitheld = 0;
-    } else {
-      # If we didn't have a bit held, use the generated bit to as the 
-      # last bit.
-      $lastbitint = $statebitint;
-      $lastbitheld = 1;
-    }
-  }
-
-  # If we still need more bits for this byte, schedule a new alarm
-  if($outbitscnt < 8) {
-    $statebitint = 0; alarm($opt_interval);
+  # If we still need more bits, schedule a new alarm
+  if($tickbuffcnt < $round_length) {
+    $increment = 0; alarm($opt_interval);
   }
 }
 
