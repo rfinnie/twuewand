@@ -32,19 +32,14 @@ __version__ = twuewand.__version__
 child_truerand = None
 
 
-def worker(bits=8, processes=0):
-    if not processes:
-        try:
-            processes = multiprocessing.cpu_count()
-        except NotImplementedError:
-            processes = 1
+def worker(bits=8, processes=None):
     pool = multiprocessing.Pool(processes, child_init, [bits])
     imap = pool.imap_unordered(child, itertools.repeat(None))
     imap.pool = pool
     return imap
 
 
-def child(generation=0):
+def child(unused=None):
     global child_truerand
     try:
         return child_truerand.next()
