@@ -4,3 +4,4 @@ include rndaddentropy/Makefile
 include rndaddentropy/*.c
 include *.md
 include doc/*
+include twuewand.spec

@@ -1,51 +1,46 @@
-Name:           twuewand
-Version:        2.0
-Release:        1%{?dist}
-Summary:        A bi-directional ping utility
+Name: twuewand
+Version: 3.0.0
+Release: 1%{?dist}
+Summary: twuewand random number generator
 
-Group:          Applications/System
-License:        GPLv2+
-URL:            http://www.finnie.org/software/twuewand/
-Source0:        http://www.finnie.org/software/twuewand/twuewand-%{version}.tar.gz
-BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
-
+Group: Applications/System
+License: GPLv2+
+Url: http://www.finnie.org/software/twuewand/
+Source0: %{name}-%{version}.tar.gz
+BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
+Prefix: %{_prefix}
+Vendor: Ryan Finnie <ryan@finnie.org>
 
 %description
-twuewand is software that creates hardware-generated random data.  It 
-accomplishes this by exploiting the fact that the CPU clock and the 
-RTC (real-time clock) are physically separate, and that time and work 
+twuewand is software that creates hardware-generated random data.  It
+accomplishes this by exploiting the fact that the CPU clock and the
+RTC (real-time clock) are physically separate, and that time and work
 are not linked.
 
-
 %prep
-%setup -q
-
+%setup -n %{name}-%{version}
 
 %build
-make EXTRAVERSION=-$RPM_PACKAGE_RELEASE
-
+python setup.py build
+make -C rndaddentropy
 
 %install
-rm -rf $RPM_BUILD_ROOT
-make install PREFIX=/usr DESTDIR=$RPM_BUILD_ROOT
-install -d -m 0755 $RPM_BUILD_ROOT/usr/share/man/man8
-install -m 0755 twuewand.8 $RPM_BUILD_ROOT/usr/share/man/man8
-install -m 0755 rndaddentropy.8 $RPM_BUILD_ROOT/usr/share/man/man8
+python setup.py install --single-version-externally-managed -O1 --root=$RPM_BUILD_ROOT --record=INSTALLED_FILES
+make -C rndaddentropy install PREFIX=/usr DESTDIR=$RPM_BUILD_ROOT
+install -d -m 0755 $RPM_BUILD_ROOT/usr/share/man/man1
+install -m 0755 doc/twuewand.1 $RPM_BUILD_ROOT/usr/share/man/man1
+install -m 0755 doc/rndaddentropy.1 $RPM_BUILD_ROOT/usr/share/man/man1
 
 
 %clean
-make clean
+python setup.py clean
+make -C rndaddentropy clean
 rm -rf $RPM_BUILD_ROOT
 
-
-%files
-%defattr(-,root,root,-)
-/usr/bin/twuewand
+%files -f INSTALLED_FILES
+%defattr(-,root,root)
 /usr/sbin/rndaddentropy
-/usr/share/man/man8/twuewand.8.gz
-/usr/share/man/man8/rndaddentropy.8.gz
+/usr/share/man/man1/twuewand.1.gz
+/usr/share/man/man1/rndaddentropy.1.gz
 %doc README
 %doc COPYING
-
-
-%changelog
