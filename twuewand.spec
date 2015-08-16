@@ -6,7 +6,7 @@ Summary: twuewand random number generator
 Group: Applications/System
 License: GPLv2+
 Url: http://www.finnie.org/software/twuewand/
-Source0: %{name}-%{version}.tar.gz
+Source0: http://www.finnie.org/software/twuewand/%{name}-%{version}.tar.gz
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 Prefix: %{_prefix}
 Vendor: Ryan Finnie <ryan@finnie.org>
@@ -18,13 +18,14 @@ RTC (real-time clock) are physically separate, and that time and work
 are not linked.
 
 %prep
-%setup -n %{name}-%{version}
+%setup -q -n %{name}-%{version}
 
 %build
 python setup.py build
 make -C rndaddentropy
 
 %install
+rm -rf $RPM_BUILD_ROOT
 python setup.py install --single-version-externally-managed -O1 --root=$RPM_BUILD_ROOT --record=INSTALLED_FILES
 make -C rndaddentropy install PREFIX=/usr DESTDIR=$RPM_BUILD_ROOT
 install -d -m 0755 $RPM_BUILD_ROOT/usr/share/man/man1
