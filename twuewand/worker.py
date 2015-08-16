@@ -53,7 +53,6 @@ class FakePool():
 
 
 def pool(processes=0, initializer=None, initargs=None):
-    # processes = 1
     if not processes:
         try:
             processes = multiprocessing.cpu_count()
