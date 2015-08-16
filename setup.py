@@ -28,7 +28,6 @@ setup(
         'License :: OSI Approved :: GNU General Public License v2 or later (GPLv2+)',
         'Operating System :: POSIX',
         'Programming Language :: Python',
-        'Programming Language :: Python :: 2 :: Only',
         'Topic :: Utilities',
     ],
     extras_require={

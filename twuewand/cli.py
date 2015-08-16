@@ -18,20 +18,19 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
 # 02110-1301, USA.
 
+from __future__ import division, print_function
 import sys
 import argparse
 import time
 import hashlib
-import __init__ as twuewand
-import worker
+from . import __version__
+from .worker import worker
 
 try:
     from Crypto.Cipher import AES
     HAS_AES = True
 except ImportError:
     HAS_AES = False
-
-__version__ = twuewand.__version__
 
 
 def parse_args():
@@ -117,8 +116,14 @@ class TwueWand():
         # Start time, for time period calculations
         self.start_time = time.time()
 
+        # Support raw buffers on both Python 2 / 3
+        if hasattr(sys.stdout, 'buffer'):
+            self.stdout = getattr(sys.stdout, 'buffer')
+        else:
+            self.stdout = sys.stdout
+
         # Build the worker children
-        self.worker = worker.worker(bits=self.worker_round_bits)
+        self.worker = worker(bits=self.worker_round_bits)
 
     def process_von_neumann(self):
         # Apply Von Neumann to incoming bits
@@ -142,12 +147,12 @@ class TwueWand():
         # Every 16 bytes of Von Neumann data, AES encrypt
         while len(self.vn_byte_queue) >= 16:
             # All raw bits are fed to the SHA256 hash
-            self.kaminsky_hash.update(str(self.raw_byte_queue))
+            self.kaminsky_hash.update(bytes(self.raw_byte_queue))
             self.raw_byte_queue = bytearray()
 
             key = self.kaminsky_hash.copy().digest()
             a = AES.new(key, AES.MODE_ECB)
-            self.output_queue.extend(a.encrypt(str(self.vn_byte_queue[0:16])))
+            self.output_queue.extend(a.encrypt(bytes(self.vn_byte_queue[0:16])))
             self.vn_byte_queue = self.vn_byte_queue[16:]
 
     def process_sha256(self):
@@ -156,7 +161,7 @@ class TwueWand():
             self.raw_byte_queue = bytearray()
 
             h = hashlib.sha256()
-            h.update(str(self.vn_byte_queue[0:32]))
+            h.update(bytes(self.vn_byte_queue[0:32]))
             self.output_queue.extend(h.digest())
             self.vn_byte_queue = self.vn_byte_queue[32:]
 
@@ -181,34 +186,37 @@ class TwueWand():
     def output(self):
         if not self.output_queue:
             return
-        out = str(self.output_queue)
+        out = self.output_queue
         self.output_queue = bytearray()
         if self.args.bytes:
             if (self.bytes_written + len(out)) > self.args.bytes:
                 out = out[0:(self.args.bytes-self.bytes_written)]
         self.bytes_written += len(out)
-        sys.stdout.write(out)
-        sys.stdout.flush()
+        self.stdout.write(bytes(out))
+        self.stdout.flush()
+
+    def print_stderr(self, value=None, end='\n'):
+        print(value, file=sys.stderr, end=end)
 
     def finish(self):
-        print >> sys.stderr
+        self.print_stderr('')
 
     def report_progress(self):
         if self.args.quiet:
             return
 
-        print >> sys.stderr, '%sGenerated %0.01f bytes, output %d' % (
+        self.print_stderr('%sGenerated %0.01f bytes, output %d' % (
             chr(13),
-            (self.bits_generated / 8.0),
+            (self.bits_generated / 8),
             self.bytes_written,
-        ),
+        ), end='')
 
     def loop(self):
         for n in self.worker:
             if n is None:
                 self.complete = True
                 return self.finish()
-            self.incoming_bytes.extend([(n >> (i*8)) % 256 for i in range(self.worker_round_bits / 8)])
+            self.incoming_bytes.extend([(n >> (i*8)) % 256 for i in range(int(self.worker_round_bits / 8))])
             self.process()
             self.output()
             self.report_progress()
@@ -221,14 +229,15 @@ class TwueWand():
 
     def run(self):
         if self.args.verbose:
-            print >> sys.stderr, 'twuewand %s' % __version__
-            print >> sys.stderr, 'Copyright 2015 Ryan Finnie'
-            print >> sys.stderr
+            self.print_stderr('twuewand %s' % __version__)
+            self.print_stderr('Copyright 2015 Ryan Finnie')
+            self.print_stderr('')
             if self.args.no_debias:
-                print >> sys.stderr, 'No debiasing will be performed.'
+                self.print_stderr('No debiasing will be performed.')
+                self.print_stderr('')
             elif not HAS_AES:
-                print >> sys.stderr, 'pycrypto not found, please consider installing for Kaminsky (AES) debiasing.'
-                print >> sys.stderr
+                self.print_stderr('pycrypto not found, please consider installing for Kaminsky (AES) debiasing.')
+                self.print_stderr('')
         try:
             self.loop()
         except KeyboardInterrupt:

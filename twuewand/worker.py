@@ -18,12 +18,9 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
 # 02110-1301, USA.
 
-import __init__ as twuewand
-from truerand import TrueRand
+from .truerand import TrueRand
 import multiprocessing
 import itertools
-
-__version__ = twuewand.__version__
 
 
 # multiprocessing does not allow for passing class instances, but we
