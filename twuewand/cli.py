@@ -18,7 +18,6 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
 # 02110-1301, USA.
 
-import itertools
 import sys
 import argparse
 import time
@@ -119,10 +118,7 @@ class TwueWand():
         self.start_time = time.time()
 
         # Build the worker children
-        worker_config = {
-            'bits': self.worker_round_bits,
-        }
-        self.pool = worker.pool(initializer=worker.worker_init, initargs=[worker_config])
+        self.worker = worker.worker(bits=self.worker_round_bits)
 
     def process_von_neumann(self):
         # Apply Von Neumann to incoming bits
@@ -208,7 +204,7 @@ class TwueWand():
         ),
 
     def loop(self):
-        for n in self.pool.imap_unordered(worker.worker, itertools.count()):
+        for n in self.worker:
             if n is None:
                 self.complete = True
                 return self.finish()

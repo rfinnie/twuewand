@@ -21,6 +21,7 @@
 import __init__ as twuewand
 from truerand import TrueRand
 import multiprocessing
+import itertools
 
 __version__ = twuewand.__version__
 
@@ -28,58 +29,29 @@ __version__ = twuewand.__version__
 # multiprocessing does not allow for passing class instances, but we
 # want to keep persistent state per-worker for EWMA calculations.  This
 # requires a global variable, but it's limited to worker children.
-worker_global = {}
+child_truerand = None
 
 
-class FakePool():
-    def __init__(self, processes=1, initializer=None, initargs=None):
-        if initargs is None:
-            initargs = []
-        if initializer:
-            initializer(*initargs)
-
-    class imap():
-        def __init__(self, func, iterable, chunksize=1):
-            self.func = func
-            self.iterable = iterable
-
-        def __iter__(self):
-            return self
-
-        def next(self):
-            return self.func(self.iterable.next())
-
-    imap_unordered = imap
-
-
-def pool(processes=0, initializer=None, initargs=None):
+def worker(bits=8, processes=0):
     if not processes:
         try:
             processes = multiprocessing.cpu_count()
         except NotImplementedError:
             processes = 1
-    if initargs is None:
-        initargs = []
-
-    if processes > 1:
-        return multiprocessing.Pool(processes, initializer, initargs)
-    else:
-        return FakePool(processes, initializer, initargs)
+    pool = multiprocessing.Pool(processes, child_init, [bits])
+    imap = pool.imap_unordered(child, itertools.repeat(None))
+    imap.pool = pool
+    return imap
 
 
-def worker(generation=0):
-    global worker_obj
-    if 'truerand_obj' not in worker_global:
-        worker_global['truerand_obj'] = TrueRand()
-        if worker_global['bits']:
-            worker_global['truerand_obj'].bits = worker_global['bits']
+def child(generation=0):
+    global child_truerand
     try:
-        return worker_global['truerand_obj'].next()
+        return child_truerand.next()
     except KeyboardInterrupt:
         return
 
 
-def worker_init(config):
-    global worker_obj
-    for k, v in config.items():
-        worker_global[k] = v
+def child_init(bits=8):
+    global child_truerand
+    child_truerand = TrueRand(bits=bits)
