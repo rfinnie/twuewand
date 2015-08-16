@@ -1,0 +1,32 @@
+.TH "RNDADDENTROPY" "1" "" "" "rndaddentropy"
+.SH NAME
+.PP
+rndaddentropy \- An RNDADDENTROPY ioctl wrapper
+.SH SYNOPSIS
+.PP
+$ENTROPY_GENERATOR | rndaddentropy
+.SH DESCRIPTION
+.PP
+\f[C]rndaddentropy\f[] is used to pipe entropy directly into Linux\[aq]s
+primary entropy pool.
+This requires superuser privileges.
+.PP
+Adding entropy directly to the primary entropy pool can be very
+dangerous, a predictable entropy increases the predictability of
+resulting data from /dev/random and /dev/urandom.
+Be sure the entropy is generated from a truly random source, and is
+properly debiased.
+.SH OPTIONS
+.TP
+.B \-\-help
+Display version and usage information.
+.RS
+.RE
+.SH BUGS
+.PP
+None known, many assumed.
+.SH SEE ALSO
+.IP \[bu] 2
+\f[C]twuewand(8)\f[], a TrueRand implementation.
+.SH AUTHORS
+Ryan Finnie.

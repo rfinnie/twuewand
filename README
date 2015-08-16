@@ -1,38 +1,53 @@
-twuewand, a truerand algorithm for generating entropy
-By Ryan Finnie <ryan@finnie.org>
-http://www.finnie.org/software/twuewand/
+twuewand - A TrueRand algorithm for generating entropy
+======================================================
 
-ABOUT
+About
+-----
 
-twuewand is software that creates hardware-generated random data.  It 
-accomplishes this by exploiting the fact that the CPU clock and the 
-RTC (real-time clock) are physically separate, and that time and work 
-are not linked.
+twuewand is software that creates hardware-generated random data. It
+accomplishes this by exploiting the fact that the CPU clock and the RTC
+(real-time clock) are physically separate, and that time and work are
+not linked.
 
-INSTALLATION
+Installation
+------------
 
-twuewand requires Perl 5.6.0 or newer, and several Perl modules, all 
-of which are in a standard Perl installation (though your distribution 
-may split Perl into "base" and "standard" packages). Several 
-non-standard packages are required for optional (but recommended) 
-features, and can be installed from your distribution's package 
-management system or CPAN. They are:
+twuewand requires Python 2.7. In addition, the pycrypto package is
+optional, but highly recommended.
 
-  Digest::SHA (for SHA256 debiasing, and Kaminsky debiasing)
-  Crypt::Rijndael (AES256; for Kaminsky debiasing)
+To install:
 
-To build and install twuewand:
+    sudo python setup.py install
 
-  make
-  make test
-  make install
-  make clean
+On Linux systems, a small C program is also available called
+rndaddentropy. This is a wrapper for the RNDADDENTROPY ioctl, and is
+used for directly adding entropy to the Linux primary pool. Please see
+its manpage for more details.
 
-On Linux systems, a small C program will also be compiled called 
-rndaddentropy.  This is a wrapper for the RNDADDENTROPY ioctl, and is 
-used for directly adding entropy to the Linux primary pool.  Please 
-see its manpage for more details.
+    sudo make -C rndaddentropy install
 
-USAGE
+Usage
+-----
 
 Please see the twuewand manpage for invocation options.
+
+License
+-------
+
+twuewand - A TrueRand algorithm for generating entropy
+
+Copyright (C) 2015 Ryan Finnie
+
+This program is free software; you can redistribute it and/or modify it
+under the terms of the GNU General Public License as published by the
+Free Software Foundation; either version 2 of the License, or (at your
+option) any later version.
+
+This program is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General
+Public License for more details.
+
+You should have received a copy of the GNU General Public License along
+with this program; if not, write to the Free Software Foundation, Inc.,
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.

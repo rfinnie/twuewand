@@ -1,0 +1,124 @@
+.TH "TWUEWAND" "1" "" "" "twuewand"
+.SH NAME
+.PP
+twuewand \- A TrueRand algorithm for generating entropy
+.SH SYNOPSIS
+.PP
+twuewand [\f[I]options\f[]] [\f[I]bytes\f[]]
+.SH DESCRIPTION
+.PP
+\f[C]twuewand\f[] is software that creates hardware\-generated random
+data.
+It accomplishes this by exploiting the fact that the CPU clock and the
+RTC (real\-time clock) are physically separate, and that time and work
+are not linked.
+.PP
+twuewand schedules a SIGALRM for a short time in the future, then begins
+flipping a bit as fast as possible.
+When the alarm is delivered, the bit\[aq]s state is recorded.
+Von Neumann debiasing is (by default) performed on bit pairs, throwing
+out matching bit pairs, and using the first bit for non\-matching bit
+pairs.
+This reduces bias, at the expense of wasted bits.
+.PP
+This process is performed multiple times until the number of desired
+bytes have been generated.
+The data is then (by default) either run through a SHA256 cryptographic
+hash digest, or encrypted with a hashed key (Kaminsky debiasing) to
+further debias the data before being output.
+.PP
+twuewand is based on the TrueRand algorithm, by D.
+P.
+Mitchell in 1995.
+The output of twuewand may be used for random data directly (as long as
+debiasing is not disabled), but its primary purpose is for seeding a
+PRNG, when a saved PRNG state is not available (on a LiveCD or diskless
+workstation, for example), or when insufficient initial entropy is not
+available (in a virtual machine, for example).
+An example use in Linux is:
+.IP
+.nf
+\f[C]
+twuewand\ $(($(cat\ /proc/sys/kernel/random/poolsize)/8))\ |\ rndaddentropy
+\f[]
+.fi
+.PP
+(This example is specific to Linux 2.6 and later.
+poolsize in Linux 2.6 is represented in bits, while 2.4 and earlier is
+bytes.)
+.PP
+\f[C]rndaddentropy\f[] is a helper utility to send data to the
+RNDADDENTROPY ioctl.
+This can be dangerous without a good source of entropy (such as a
+hardware key or twuewand with sufficient debiasing); see
+\f[C]rndaddentropy(8)\f[] for details.
+.PP
+You may also send twuewand output to /dev/random or /dev/urandom, but
+this merely "stirs the pot", and does not directly add entropy to the
+pool.
+.PP
+Unless specifically disabled (see below), twuewand will try to use a
+variety of debiasing techniques, The most comprehensive method will be
+chosen, depending on what Python modules are available.
+They include:
+.IP \[bu] 2
+Von Neumann simple debiasing.
+.IP \[bu] 2
+Output hashing with SHA256.
+.IP \[bu] 2
+Kaminsky debiasing, an extension of Von Neumann.
+This requires pycrypto.
+.SH OPTIONS
+.TP
+.B \-\-bytes=\f[I]bytes\f[], \-b \f[I]bytes\f[]
+The number of bytes to generate.
+If both \-\-bytes and \-\-seconds are set, twuewand will exit when
+either condition is satisfied first.
+.RS
+.RE
+.TP
+.B \-\-seconds=\f[I]seconds\f[], \-s \f[I]seconds\f[]
+The number of seconds to generate bytes.
+This can be a fraction of a second.
+If both \-\-bytes and \-\-seconds are set, twuewand will exit when
+either condition is satisfied first.
+.RS
+.RE
+.TP
+.B \-\-quiet, \-q
+Do not print status information to STDERR.
+.RS
+.RE
+.TP
+.B \-\-verbose, \-v
+Print additional information to STDERR.
+.RS
+.RE
+.TP
+.B \-\-no\-debias
+Do not perform any sort of debiasing on the output returned from the
+TrueRand procedure.
+.RS
+.RE
+.SH BUGS
+.PP
+None known, many assumed.
+.SH SEE ALSO
+.IP \[bu] 2
+\f[C]rndaddentropy(1)\f[]
+.IP \[bu] 2
+Introducing
+twuewand (http://www.finnie.org/2011/09/25/introducing-twuewand/)
+.IP \[bu] 2
+/dev/random \- Wikipedia (http://en.wikipedia.org/wiki//dev/random)
+.IP \[bu] 2
+Hardware random number generator \-
+Wikipedia (http://en.wikipedia.org/wiki/Hardware_random_number_generator)
+.IP \[bu] 2
+Analysis of the Linux Random Number
+Generator (http://eprint.iacr.org/2006/086.pdf)
+.IP \[bu] 2
+Re: `Random\[aq]
+seed. (http://www.atomicfrog.com/knowledge/security/misc/truerand.c)
+.SH AUTHORS
+Ryan Finnie.
