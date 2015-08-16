@@ -21,10 +21,22 @@ setup(
     url='http://www.finnie.org/software/twuewand/',
     download_url='http://www.finnie.org/software/twuewand/',
     packages=['twuewand'],
-    classifiers=[],
+    classifiers=[
+        'Development Status :: 5 - Production/Stable',
+        'Intended Audience :: Developers',
+        'Intended Audience :: System Administrators',
+        'License :: OSI Approved :: GNU General Public License v2 or later (GPLv2+)',
+        'Operating System :: POSIX',
+        'Programming Language :: Python',
+        'Programming Language :: Python :: 2 :: Only',
+        'Topic :: Utilities',
+    ],
+    extras_require={
+        'AES':  ['pycrypto'],
+    },
     entry_points={
         'console_scripts': [
             'twuewand = twuewand.cli:main',
         ],
-    }
+    },
 )

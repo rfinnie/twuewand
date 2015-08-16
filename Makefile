@@ -16,7 +16,7 @@ clean:
 rndaddentropy:
 	$(MAKE) -C rndaddentropy
 
-doc:
+doc: README
 	$(MAKE) -C doc
 
 README: README.md

@@ -1,5 +1,6 @@
 include README
 include COPYING
+include Makefile
 include rndaddentropy/Makefile
 include rndaddentropy/*.c
 include *.md
