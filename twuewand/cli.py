@@ -236,7 +236,6 @@ class TwueWand():
         try:
             self.loop()
         except KeyboardInterrupt:
-            self.complete = True
             self.finish()
 
 
