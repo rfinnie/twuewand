@@ -111,8 +111,6 @@ class TwueWand():
         self.bits_generated = 0
         # Number of bytes which have actually been written to stdout
         self.bytes_written = 0
-        # Whether to enter shutdown mode
-        self.complete = False
         # Start time, for time period calculations
         self.start_time = time.time()
 
@@ -214,17 +212,14 @@ class TwueWand():
     def loop(self):
         for n in self.worker:
             if n is None:
-                self.complete = True
                 return self.finish()
             self.incoming_bytes.extend([(n >> (i*8)) % 256 for i in range(int(self.worker_round_bits / 8))])
             self.process()
             self.output()
             self.report_progress()
             if self.args.bytes and (self.bytes_written == self.args.bytes):
-                self.complete = True
+                return self.finish()
             if self.args.seconds and (time.time() >= (self.start_time + self.args.seconds)):
-                self.complete = True
-            if self.complete:
                 return self.finish()
 
     def run(self):
