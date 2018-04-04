@@ -98,4 +98,8 @@ class TrueRand():
         signal.signal(signal.SIGALRM, previous_sigalrm)
         return self._int
 
-    next = get_int
+    def __next__(self):
+        return self.get_int()
+
+    def next(self):
+        return self.__next__()
