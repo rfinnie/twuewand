@@ -142,16 +142,16 @@ class TwueWand():
         self.incoming_bytes = bytearray()
 
     def process_kaminsky(self):
-        # Every 16 bytes of Von Neumann data, AES encrypt
-        while len(self.vn_byte_queue) >= 16:
+        # Every 32 bytes of Von Neumann data, AES encrypt
+        while len(self.vn_byte_queue) >= 32:
             # All raw bits are fed to the SHA256 hash
             self.kaminsky_hash.update(bytes(self.raw_byte_queue))
             self.raw_byte_queue = bytearray()
 
             key = self.kaminsky_hash.copy().digest()
             a = AES.new(key, AES.MODE_ECB)
-            self.output_queue.extend(a.encrypt(bytes(self.vn_byte_queue[0:16])))
-            self.vn_byte_queue = self.vn_byte_queue[16:]
+            self.output_queue.extend(a.encrypt(bytes(self.vn_byte_queue[0:32])))
+            self.vn_byte_queue = self.vn_byte_queue[32:]
 
     def process_sha256(self):
         # Further whiten Von Neumann data with SHA256
