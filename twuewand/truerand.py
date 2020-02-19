@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 # twuewand random number generator
 # Copyright (C) 2015 Ryan Finnie
