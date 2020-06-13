@@ -1,24 +1,22 @@
+PYTHON := python3
+
 all: build
 
 build:
-	python setup.py build
+	$(PYTHON) setup.py build
 
 test: build
-	python setup.py test
+	$(PYTHON) setup.py test
 
 install: build
-	python setup.py install
+	$(PYTHON) setup.py install
 
 clean:
-	python setup.py clean
+	$(PYTHON) setup.py clean
 	$(RM) -r build MANIFEST
 
 rndaddentropy:
 	$(MAKE) -C rndaddentropy
 
-doc: README
+doc:
 	$(MAKE) -C doc
-
-README: README.md
-	pandoc -s -t plain -o $@ $<
-

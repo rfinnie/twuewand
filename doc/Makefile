@@ -1,11 +1,13 @@
+PANDOC := pandoc
+
 MARKDOWN=twuewand.md rndaddentropy.md
-MAN=$(patsubst %.md,%.1,$(MARKDOWN)) 
+MAN=$(patsubst %.md,%.1,$(MARKDOWN))
 
 all: man
 man: ${MAN}
 
-clean: 
+clean:
 	rm -f ${MAN}
 
 %.1: %.md
-	pandoc -s -t man -o $@ $<
+	$(PANDOC) -s -t man -o $@ $<

@@ -1,4 +1,4 @@
-include README
+include README.md
 include COPYING
 include Makefile
 include rndaddentropy/Makefile
@@ -6,3 +6,4 @@ include rndaddentropy/*.c
 include *.md
 include doc/*
 include twuewand.spec
+include requirements.txt

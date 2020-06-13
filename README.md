@@ -7,12 +7,12 @@ It accomplishes this by exploiting the fact that the CPU clock and the RTC (real
 
 ## Installation
 
-twuewand requires Python 2.7.
+twuewand requires Python 3.
 In addition, the pycrypto package is optional, but highly recommended.
 
 To install:
 
-    sudo python setup.py install
+    sudo python3 setup.py install
 
 On Linux systems, a small C program is also available called rndaddentropy.
 This is a wrapper for the RNDADDENTROPY ioctl, and is used for directly adding entropy to the Linux primary pool.

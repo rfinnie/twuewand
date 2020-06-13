@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import os
 from setuptools import setup
@@ -12,7 +12,8 @@ def read(filename):
 setup(
     name='twuewand',
     description='twuewand random number generator',
-    long_description=read('README'),
+    long_description=read('README.md'),
+    # long_description_content_type="text/markdown",  # Safe to add circa 2023
     version=twuewand.__version__,
     license='GPLv2+',
     platforms=['Unix'],
