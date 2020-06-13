@@ -203,9 +203,10 @@ class TwueWand():
         if self.args.quiet:
             return
 
-        self.print_stderr('%sGenerated %0.01f bytes, output %d' % (
+        self.print_stderr('{}Generated {:d} bits ({:0.02f} bps), output {:d} bytes        '.format(
             chr(13),
-            (self.bits_generated / 8),
+            self.bits_generated,
+            self.bits_generated / (time.time() - self.start_time),
             self.bytes_written,
         ), end='')
 
