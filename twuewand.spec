@@ -2,7 +2,7 @@ Name:           twuewand
 Version:        3.0.0
 Release:        1%{?dist}
 Summary:        twuewand random number generator
-License:        GPLv2+
+License:        MPLv2.0
 URL:            https://www.finnie.org/software/twuewand
 Source0:        https://www.finnie.org/software/%{name}/%{name}-%{version}.tar.gz
 BuildArch:      noarch
@@ -30,7 +30,7 @@ install -Dp -m 0644 doc/rndaddentropy.1 %{buildroot}/%{_mandir}/man1
 
 %files
 %doc README.md
-%license COPYING
+%license COPYING.md
 %{python3_sitelib}/*
 %{_bindir}/%{name}
 %{_bindir}/rndaddentropy
